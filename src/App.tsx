@@ -1,7 +1,7 @@
-import { useCallback, useMemo, useState, type DragEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type DragEvent } from "react";
 import { ReactFlowProvider } from "@xyflow/react";
 import type { FmlEdge } from "./fml/index.ts";
-import { FlowCanvas } from "./components/FlowCanvas.tsx";
+import { FlowCanvas, fitPadding } from "./components/FlowCanvas.tsx";
 import { Sidebar } from "./components/Sidebar.tsx";
 import { Toolbar } from "./components/Toolbar.tsx";
 import { SourcePanel } from "./components/SourcePanel.tsx";
@@ -10,11 +10,20 @@ import { PropertyPanel, type Selection } from "./components/PropertyPanel.tsx";
 import { useFmlChart } from "./hooks/useFmlChart.ts";
 import { useLocalStorage } from "./hooks/useLocalStorage.ts";
 import { SAMPLE_FML } from "./lib/sample.ts";
-import { setEdgeLabel, setNodeBlock, setNodeType } from "./lib/fmlEdit.ts";
+import { setEdgeLabel, setEdgeNote, setNodeBlock, setNodeType } from "./lib/fmlEdit.ts";
 import { fileKey, type Workspace } from "./types/workspace.ts";
 import type { LayoutDirection } from "./types/chart.ts";
 
 const WS_KEY = "protoarque_fml_ws";
+
+/** Widths of the docked panels, shared by the layout and by fitView's padding. */
+const PROPERTY_W = 280;
+const SOURCE_W = 400;
+/** Room for the floating toolbar at the top of the canvas. */
+const TOOLBAR_H = 60;
+const GUTTER = 28;
+
+const sampleWorkspace = (): Workspace => ({ files: { sample: SAMPLE_FML }, entry: "sample" });
 
 function initialWorkspace(): Workspace {
   try {
@@ -25,19 +34,20 @@ function initialWorkspace(): Workspace {
   } catch {
     /* fall through to the sample */
   }
-  return { files: { sample: SAMPLE_FML }, entry: "sample" };
+  return sampleWorkspace();
 }
 
-/** After files are added, choose which one to parse from. */
+/** After files are added or removed, choose which one to parse from. */
 function pickEntry(files: Record<string, string>, current: string): string {
   if (files[current]) return current;
   const withFof = Object.keys(files).find((k) => /^@fof\b/m.test(files[k] ?? ""));
-  return withFof ?? (files.app ? "app" : files.main ? "main" : Object.keys(files)[0]!);
+  return withFof ?? (files.app ? "app" : files.main ? "main" : Object.keys(files)[0] ?? "main");
 }
 
 export function App() {
   const [ws, setWs] = useLocalStorage<Workspace>(WS_KEY, initialWorkspace());
   const [dir, setDir] = useLocalStorage<LayoutDirection>("protoarque_fml_dir", "TB");
+  const [sidebarOpen, setSidebarOpen] = useLocalStorage("protoarque_fml_sidebar", true);
   const [strict, setStrict] = useState(false);
   const [sourceOpen, setSourceOpen] = useState(false);
   const [activeDoc, setActiveDoc] = useState<string | null>(null);
@@ -56,6 +66,26 @@ export function App() {
     },
     [setWs],
   );
+
+  const removeFile = useCallback(
+    (name: string) => {
+      setWs((prev) => {
+        const files = { ...prev.files };
+        delete files[name];
+        if (Object.keys(files).length === 0) return sampleWorkspace();
+        return { files, entry: pickEntry(files, prev.entry) };
+      });
+      setActiveDoc(null);
+      setSel(null);
+    },
+    [setWs],
+  );
+
+  const reset = useCallback(() => {
+    setWs(sampleWorkspace());
+    setActiveDoc(null);
+    setSel(null);
+  }, [setWs]);
 
   const setEntry = useCallback(
     (name: string) => {
@@ -106,6 +136,23 @@ export function App() {
     [editTarget, writeFile],
   );
 
+  const commitEdgeNote = useCallback(
+    (edge: FmlEdge, data: Record<string, string>) => {
+      writeFile((text) => setEdgeNote(text, editTarget.docName, edge, data));
+    },
+    [editTarget, writeFile],
+  );
+
+  // Drilling into a `flow` portal: `doc:` names a doc in the parsed file.
+  const openDoc = useCallback(
+    (name: string) => {
+      if (!chart.docs.includes(name)) return;
+      setActiveDoc(name);
+      setSel(null);
+    },
+    [chart.docs],
+  );
+
   const onDrop = useCallback(
     async (e: DragEvent<HTMLDivElement>) => {
       e.preventDefault();
@@ -118,23 +165,64 @@ export function App() {
     [addFiles],
   );
 
+  // Esc clears the selection; ⌘\ / Ctrl+\ toggles the sidebar. Both are
+  // ignored while a field has focus so they never fight with typing.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      const typing = !!el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
+      if (e.key === "Escape" && !typing) setSel(null);
+      if (e.key === "\\" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        setSidebarOpen((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [setSidebarOpen]);
+
   const fileNames = useMemo(() => Object.keys(ws.files), [ws.files]);
+
+  const padding = useMemo(
+    () =>
+      fitPadding({
+        top: TOOLBAR_H,
+        right: GUTTER + (sel ? PROPERTY_W : 0) + (sourceOpen ? SOURCE_W : 0),
+        bottom: GUTTER,
+        left: GUTTER,
+      }),
+    [sel, sourceOpen],
+  );
 
   return (
     <ReactFlowProvider>
       <div className="flex h-full w-full">
-        <Sidebar
-          files={fileNames}
-          entry={ws.entry}
-          onEntry={setEntry}
-          docs={chart.docs}
-          activeDoc={chart.activeDoc}
-          onActiveDoc={setActiveDoc}
-          nodes={chart.nodes}
-        />
+        {sidebarOpen && (
+          <Sidebar
+            files={fileNames}
+            entry={ws.entry}
+            onEntry={setEntry}
+            onRemoveFile={removeFile}
+            docs={chart.docs}
+            activeDoc={chart.activeDoc}
+            onActiveDoc={setActiveDoc}
+            nodes={chart.nodes}
+            stats={chart.stats}
+            selection={sel}
+            onSelect={setSel}
+            onCollapse={() => setSidebarOpen(false)}
+          />
+        )}
 
         <div className="relative flex-1" onDrop={onDrop} onDragOver={(e) => e.preventDefault()}>
-          <FlowCanvas chartNodes={chart.nodes} chartEdges={chart.edges} onSelect={setSel} />
+          <FlowCanvas
+            chartNodes={chart.nodes}
+            chartEdges={chart.edges}
+            selection={sel}
+            onSelect={setSel}
+            onOpenDoc={openDoc}
+            padding={padding}
+          />
           <Toolbar
             stats={chart.stats}
             dir={dir}
@@ -144,6 +232,12 @@ export function App() {
             sourceOpen={sourceOpen}
             onToggleSource={() => setSourceOpen((v) => !v)}
             onAddFiles={addFiles}
+            entry={ws.entry}
+            entrySource={ws.files[ws.entry] ?? ""}
+            onReset={reset}
+            sidebarOpen={sidebarOpen}
+            onToggleSidebar={() => setSidebarOpen(true)}
+            padding={padding}
             errorCount={chart.errors.length}
             warningCount={chart.warnings.length}
           />
@@ -152,10 +246,11 @@ export function App() {
             <PropertyPanel
               sel={sel}
               doc={chart.doc}
-              shiftLeft={sourceOpen}
+              shiftLeft={sourceOpen ? SOURCE_W : 0}
               onClose={() => setSel(null)}
               onCommitNode={commitNode}
               onCommitEdgeLabel={commitEdgeLabel}
+              onCommitEdgeNote={commitEdgeNote}
             />
           )}
 
@@ -168,7 +263,11 @@ export function App() {
             />
           )}
 
-          <IssueList errors={chart.errors} warnings={chart.warnings} offset={sourceOpen} />
+          <IssueList
+            errors={chart.errors}
+            warnings={chart.warnings}
+            offset={(sel ? PROPERTY_W : 0) + (sourceOpen ? SOURCE_W : 0)}
+          />
         </div>
       </div>
     </ReactFlowProvider>

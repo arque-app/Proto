@@ -4,6 +4,7 @@
 @meta
   title: Auth Flow
   version: 0.1
+  base: https://api.example.com
 
 @nodes
   Login = page
@@ -13,9 +14,10 @@
   unauthorized = page
 
 @node login {
-  endpoint: https://api.example.com/auth/login
   method: POST
+  path: /auth/login
   auth: none
+  expect: 200,202
 }
 
 @flow

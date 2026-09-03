@@ -1,32 +1,40 @@
 import { useMemo } from "react";
 import { useReactFlow } from "@xyflow/react";
+import type { FmlStats } from "../fml/index.ts";
 import type { FmlFlowNode } from "../types/chart.ts";
-import { kindColor } from "../lib/nodeStyle.ts";
+import { kindColor, kindPlural } from "../lib/nodeStyle.ts";
+import { Glyph } from "./Glyph.tsx";
+import type { Selection } from "./PropertyPanel.tsx";
 
 interface Props {
   files: string[];
   entry: string;
   onEntry: (name: string) => void;
+  onRemoveFile: (name: string) => void;
   docs: string[];
   activeDoc: string;
   onActiveDoc: (name: string) => void;
   /** Laid-out nodes of the active doc. */
   nodes: FmlFlowNode[];
+  stats: FmlStats;
+  selection: Selection | null;
+  onSelect: (sel: Selection | null) => void;
+  onCollapse: () => void;
 }
 
-const GROUP_LABEL: Record<string, string> = {
-  page: "Pages",
-  api: "APIs",
-  flow: "Flows",
-  decision: "Decisions",
-};
-const groupLabel = (k: string) => GROUP_LABEL[k] ?? `${k[0]!.toUpperCase()}${k.slice(1)}`;
-const GROUP_ORDER = ["page", "api", "flow", "decision"];
+/** Standard types first, in reading order; anything else falls to the bottom. */
+const GROUP_ORDER = ["page", "api", "decision", "event", "flow"];
 
 const navRow = (on: boolean) =>
-  `group relative w-full truncate rounded-md py-1.5 pl-2.5 pr-2 text-left text-[12px] transition-colors ${
+  `group relative flex w-full items-center gap-1.5 rounded-md py-1.5 pl-2.5 pr-1.5 text-left text-[12px] transition-colors ${
     on ? "bg-white/[0.06] text-ink" : "text-ink-dim hover:bg-white/[0.035] hover:text-ink"
   }`;
+
+function ActiveBar() {
+  return (
+    <span className="absolute left-0 top-1/2 h-3.5 w-0.5 -translate-y-1/2 rounded-full bg-accent" />
+  );
+}
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -39,10 +47,24 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export function Sidebar({ files, entry, onEntry, docs, activeDoc, onActiveDoc, nodes }: Props) {
+export function Sidebar({
+  files,
+  entry,
+  onEntry,
+  onRemoveFile,
+  docs,
+  activeDoc,
+  onActiveDoc,
+  nodes,
+  stats,
+  selection,
+  onSelect,
+  onCollapse,
+}: Props) {
   const { setCenter, getNode } = useReactFlow();
 
-  const focus = (id: string) => {
+  const pick = (id: string) => {
+    onSelect({ kind: "node", id });
     const n = getNode(id);
     if (!n) return;
     const w = n.measured?.width ?? 190;
@@ -52,22 +74,29 @@ export function Sidebar({ files, entry, onEntry, docs, activeDoc, onActiveDoc, n
 
   const groups = useMemo(() => {
     const by = new Map<string, FmlFlowNode[]>();
-    for (const n of nodes) (by.get(n.data.kind) ?? by.set(n.data.kind, []).get(n.data.kind)!).push(n);
+    for (const n of nodes) {
+      const kind = n.data.kind;
+      const bucket = by.get(kind);
+      if (bucket) bucket.push(n);
+      else by.set(kind, [n]);
+    }
+    const rank = (k: string) => {
+      const i = GROUP_ORDER.indexOf(k);
+      return i === -1 ? GROUP_ORDER.length : i;
+    };
     return [...by.entries()]
-      .sort((a, b) => {
-        const ia = GROUP_ORDER.indexOf(a[0]);
-        const ib = GROUP_ORDER.indexOf(b[0]);
-        return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib) || a[0].localeCompare(b[0]);
-      })
+      .sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b))
       .map(([kind, ns]) => ({
         kind,
         nodes: [...ns].sort((a, b) => a.data.label.localeCompare(b.data.label)),
       }));
   }, [nodes]);
 
+  const selectedNode = selection?.kind === "node" ? selection.id : null;
+
   return (
     <aside className="flex h-full w-[236px] shrink-0 flex-col overflow-y-auto border-r border-line bg-surface text-ink-dim">
-      <div className="flex items-center border-b border-line px-3.5 py-3">
+      <div className="flex items-center gap-2 border-b border-line px-3.5 py-3">
         <span
           className="text-[15px] text-ink"
           style={{ fontFamily: "var(--font-brand)", fontWeight: 400 }}
@@ -75,17 +104,31 @@ export function Sidebar({ files, entry, onEntry, docs, activeDoc, onActiveDoc, n
           protoArch
         </span>
         <span className="ml-auto font-mono text-[10px] text-ink-mute">fml</span>
+        <button
+          className="rounded px-1 text-[12px] leading-none text-ink-mute transition-colors hover:bg-white/10 hover:text-ink"
+          onClick={onCollapse}
+          title="Hide sidebar (⌘\)"
+        >
+          ⟨
+        </button>
       </div>
 
       {files.length > 1 && (
         <Section title="Files">
           {files.map((f) => (
-            <button key={f} className={navRow(f === entry)} onClick={() => onEntry(f)}>
-              {f === entry && (
-                <span className="absolute left-0 top-1/2 h-3.5 w-0.5 -translate-y-1/2 rounded-full bg-accent" />
-              )}
-              <span className="font-mono">{f}</span>
-            </button>
+            <div key={f} className="group relative flex items-center">
+              <button className={navRow(f === entry)} onClick={() => onEntry(f)}>
+                {f === entry && <ActiveBar />}
+                <span className="min-w-0 flex-1 truncate font-mono">{f}</span>
+              </button>
+              <button
+                className="absolute right-1 rounded px-1 text-[11px] leading-none text-ink-mute opacity-0 transition-opacity hover:bg-white/10 hover:text-ink focus-visible:opacity-100 group-hover:opacity-100"
+                onClick={() => onRemoveFile(f)}
+                title={`Remove ${f} from the workspace`}
+              >
+                ✕
+              </button>
+            </div>
           ))}
         </Section>
       )}
@@ -93,38 +136,45 @@ export function Sidebar({ files, entry, onEntry, docs, activeDoc, onActiveDoc, n
       <Section title="Docs">
         {docs.map((d) => (
           <button key={d} className={navRow(d === activeDoc)} onClick={() => onActiveDoc(d)}>
-            {d === activeDoc && (
-              <span className="absolute left-0 top-1/2 h-3.5 w-0.5 -translate-y-1/2 rounded-full bg-accent" />
-            )}
-            {d}
+            {d === activeDoc && <ActiveBar />}
+            <span className="min-w-0 flex-1 truncate">{d}</span>
           </button>
         ))}
       </Section>
 
       <Section title={`${activeDoc} · layers`}>
-        {groups.length === 0 && (
-          <p className="px-1.5 py-1 text-[12px] text-ink-mute">no nodes</p>
-        )}
+        {groups.length === 0 && <p className="px-1.5 py-1 text-[12px] text-ink-mute">no nodes</p>}
         {groups.map((g) => (
           <div key={g.kind} className="pb-1.5">
             <div className="flex items-center gap-1.5 px-1.5 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-[0.07em] text-ink-mute">
               <span className="h-1.5 w-1.5 rounded-full" style={{ background: kindColor(g.kind) }} />
-              {groupLabel(g.kind)}
+              {kindPlural(g.kind)}
               <span className="text-ink-mute/70">{g.nodes.length}</span>
             </div>
             {g.nodes.map((n) => (
               <button
                 key={n.id}
-                className={`${navRow(false)} pl-3.5`}
-                onClick={() => focus(n.id)}
+                className={`${navRow(n.id === selectedNode)} pl-3`}
+                onClick={() => pick(n.id)}
                 title={n.id}
               >
-                {n.data.label}
+                {n.id === selectedNode && <ActiveBar />}
+                <span className="shrink-0" style={{ color: kindColor(g.kind) }}>
+                  <Glyph kind={g.kind} size={11} />
+                </span>
+                <span className="min-w-0 flex-1 truncate">{n.data.label}</span>
               </button>
             ))}
           </div>
         ))}
       </Section>
+
+      <div className="mt-auto px-3.5 py-3 font-mono text-[10px] leading-relaxed text-ink-mute">
+        {stats.nodes} nodes · {stats.edges} edges
+        <br />
+        {stats.flowCount} flow{stats.flowCount === 1 ? "" : "s"}
+        {stats.unwired.length > 0 && ` · ${stats.unwired.length} unwired`}
+      </div>
     </aside>
   );
 }

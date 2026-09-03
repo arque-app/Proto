@@ -21,6 +21,9 @@
 //   * Blank lines are ignored. Section order does not matter.
 //   * `-->` / `-  ->` normalise to an empty label; `-200,202>` is one edge labelled "200,202".
 //   * Node ids are doc-local: the same id in two @docs is two independent nodes.
+//   * Node types come from the standard vocabulary in `nodeTypes.ts`. Anything
+//     else parses and draws, but warns (errors in strict). Strict mode also
+//     warns about a standard type missing its expected keys.
 
 import type {
   FmlDoc,
@@ -30,6 +33,7 @@ import type {
   ParseOptions,
   ParseResult,
 } from "./types.ts";
+import { NODE_TYPE_NAMES, UNTYPED, isKnownType, missingKeys } from "./nodeTypes.ts";
 
 interface Line {
   /** 1-based source line number. */
@@ -57,7 +61,9 @@ const RE = {
   nodeHeader: /^@node\s+([A-Za-z0-9_]+)\s*\{$/,
   section: /^@(meta|nodes|flow)$/,
   decl: /^([A-Za-z0-9_]+)\s*=\s*([A-Za-z0-9_]+)$/,
-  kv: /^([A-Za-z0-9_-]+)\s*:\s*(.*)$/,
+  // `.` is allowed so repeatable execution keys work: `header.Authorization`,
+  // `query.page`, `capture.token`.
+  kv: /^([A-Za-z0-9_.-]+)\s*:\s*(.*)$/,
   groupOpen: /^([A-Za-z0-9_]+)\s*:$/,
   // Trailing `(\s*\{)?` captures a note-block opener on the same line as the arrow.
   groupEdge: /^-([^>\n]*)>\s*([A-Za-z0-9_]+)(\s*\{)?$/,
@@ -319,7 +325,7 @@ function parseDoc(
     } else {
       warnings.push({ line, message: `auto-created undeclared node "${id}"` });
     }
-    table.set(id, { id, type: "unknown", data: {} });
+    table.set(id, { id, type: UNTYPED, data: {} });
   };
 
   const addEdge = (source: string, target: string, label: string, line: number): FmlEdge => {
@@ -339,6 +345,9 @@ function parseDoc(
   }
 
   // Pass 2: @nodes (roster)
+  // declLine remembers where each node was declared, so type/key diagnostics
+  // raised after the metadata pass can still point at a real line.
+  const declLine = new Map<string, number>();
   for (const s of sections) {
     if (s.kind !== "nodes") continue;
     for (const l of s.body) {
@@ -351,6 +360,13 @@ function parseDoc(
       if (table.has(id)) {
         warnings.push({ line: l.n, message: `node "${id}" redeclared` });
       }
+      if (!isKnownType(type)) {
+        const message =
+          `unknown node type "${type}" for "${id}" — ` +
+          `the standard types are ${NODE_TYPE_NAMES.join(", ")}`;
+        (strict ? errors : warnings).push({ line: l.n, message });
+      }
+      declLine.set(id, l.n);
       table.set(id, { id, type, data: table.get(id)?.data ?? {} });
     }
   }
@@ -368,12 +384,25 @@ function parseDoc(
       } else {
         warnings.push({
           line: s.header.n,
-          message: `@node "${s.nodeId}" not in @nodes — created with type "unknown"`,
+          message: `@node "${s.nodeId}" not in @nodes — created with type "${UNTYPED}"`,
         });
       }
-      table.set(s.nodeId, { id: s.nodeId, type: "unknown", data: {} });
+      table.set(s.nodeId, { id: s.nodeId, type: UNTYPED, data: {} });
     }
     Object.assign(table.get(s.nodeId)!.data, parseKv(s.body, errors));
+  }
+
+  // Pass 3b: expected-key hints. Strict only — loose mode draws whatever you
+  // gave it without nagging, which is what you want while you are still typing.
+  if (strict) {
+    for (const node of table.values()) {
+      const missing = missingKeys(node.type, node.data);
+      if (missing.length === 0) continue;
+      warnings.push({
+        line: declLine.get(node.id) ?? 0,
+        message: `${node.type} "${node.id}" is missing ${missing.map((k) => `"${k}"`).join(", ")}`,
+      });
+    }
   }
 
   // Pass 4: @flow

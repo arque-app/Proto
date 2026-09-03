@@ -1,13 +1,61 @@
 # Context — protoarque
 
 **Focus:** FML — `.fml` Flowchart Markup Language: parser (`src/fml/`) + web viewer (React Flow + dagre)
-**Phase:** R&D — parser + viewer working; viewer live at https://protoarch.web.app
-**Open:** property-panel gaps — edge-note editing, node rename, add/delete node+edge (needs an FmlDoc→text serializer, shared with `fml bundle`); FML-on-FML step 3 portal drill-down + breadcrumb; "Open folder" (File System Access API); image thumbnails on `page` nodes; **JB's protoArch logo PNG (Lexend 400) — remind him, then swap the sidebar text for it**; "reset to sample" button; sidebar collapse/resize; label crowding on primary+reciprocal at one node; fitView ignores toolbar height
-**Next:** FmlDoc→text serializer → unlocks structural edits in the property panel + `fml bundle`; then step 3 portal drill-down
+**Phase:** R&D — language standardised (5 node types), viewer redesigned; live at https://protoarch.web.app
+**Open:** node rename + add/delete node/edge (structural — needs an FmlDoc→text serializer, shared with `fml bundle`); breadcrumb for portal drill-down (the jump itself works); "Open folder" (File System Access API); **JB's protoArch logo PNG (Lexend 400) — remind him, then swap the sidebar text for it**; sidebar resize; label crowding on primary+reciprocal at one node; `#` in a value is still eaten by the comment lexer (JB's call); `public/index.html` is dead Firebase boilerplate
+**Next:** JB reviews branch `polish/design-and-node-standard`; then Variables (`{name}` interpolation, `@env`, `capture` resolution) toward executable flows
 
 ---
 
 ## Log
+
+### 2026-09-04 — JB / Claude — node standard + full design pass  (branch `polish/design-and-node-standard`)
+JB: "think of urself as a senior designer and senior engineer and senior product
+designer… fix any mistakes/holes… push whatever we have to main, cut a branch."
+Pushed the pending lore to `main` (`5e8ee5d`), then built on a branch.
+
+**Language — the node standard shipped.** New `src/fml/nodeTypes.ts` is the
+single source of truth: five types — `page`, `api`, `decision`, `event`, `flow`
+— each with a colour, a glyph, a summary, `expects` and `optional` keys. Design
+call made while building: `expects` holds **only** keys without which the node
+can't do its job (`api` → method + path/url, `flow` → doc). A page's `route` and
+a decision's `condition` moved to `optional`, because `Login = page` must stay a
+complete, correct node — a sketch language that nags is a worse sketch language.
+Parser: off-standard type warns (errors in strict); strict also hints at missing
+expected keys; kv key charset gained `.` so the execution-ready `header.<Name>`,
+`query.<name>`, `capture.<var>` keys parse. `unknown` is reserved for
+parser-invented nodes and never double-warns.
+
+**Design pass.** Node cards rebuilt: type accent rail + per-type SVG glyph +
+type tag, selected state glows in the type's own colour, `flow` nodes get a
+stacked-card "there's a doc behind this" silhouette, untyped nodes go dashed,
+`page` nodes render an `image:` thumbnail (http/data URLs only), long meta lists
+collapse to "+n more". One React Flow node type (`fml`) instead of the old
+page/api aliasing. Sidebar: collapsible (⌘\), selection-aware and two-way with
+the canvas, per-type glyphs, file removal, doc/flow counts. Toolbar: Save,
+Reset, sidebar toggle, focus rings. `fitView` now takes a padding object built
+from the real chrome widths, so nodes stop hiding under the toolbar and panels.
+Empty-canvas state. Esc clears selection.
+
+**Holes closed.** Edge notes are editable in the property panel (`setEdgeNote`
+in `fmlEdit.ts`, + 13 tests) — the last read-only corner of the write-back path;
+found and fixed a latent bug where a note body line like `blocked:` could be
+mistaken for a group header, by teaching the edge-line finder to skip note
+blocks. Portal drill-down (fml-on-fml step 3): double-click a `flow` node to
+jump to the doc its `doc:` key names. "Reset to sample" finally exists. The
+sample file was rewritten to demonstrate the whole standard — all five types,
+exec-ready `api` keys with `{token}` interpolation and `capture.`, an edge note,
+and a second `@doc`. All `examples/*.fml` updated to parse clean under strict.
+Docs: `README.md` was a single line — written properly; `CLAUDE.md` still
+described the abandoned 2026-07 tech-tree concept — rewritten; `HOW-TO.md` gained
+the type standard, the execution-ready `api` key section and the viewer's
+capabilities.
+
+134 tests green (89 parse / 16 stats / 29 fmlEdit), typecheck + build clean.
+NOT verified visually — the Chrome extension wasn't connected this session, so
+every layout/colour claim above is from the code, not from a screenshot.
+NOT done: deploy (held for JB's review of the branch).
+Loaded: CLAUDE.md, GUARDRAILS.md, CONTEXT.md
 
 ### 2026-09-03 — JB / Claude (cont.) — property panel (edit → write .fml), dots, Lexend wordmark
 Right-side **property panel** (`src/components/PropertyPanel.tsx`): click a node

@@ -10,8 +10,17 @@
 @nodes
   Splash   = page
   Home     = page
-  Checkout = flow     # will become a portal to @doc checkout
-  Account  = flow     # portal to @doc account
+  Checkout = flow
+  Account  = flow
+
+# a flow node is a portal — `doc:` names the @doc it stands for
+@node Checkout {
+  doc: checkout
+}
+
+@node Account {
+  doc: account
+}
 
 @flow
   Splash -ready> Home
@@ -56,6 +65,11 @@
   Overview   = page
   EditName   = page
   saveName   = api
+
+@node saveName {
+  method: PATCH
+  path: /api/v1/account/name
+}
 
 @flow
   Overview -edit> EditName

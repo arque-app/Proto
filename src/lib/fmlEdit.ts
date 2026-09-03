@@ -124,6 +124,91 @@ export function setNodeType(
   return lines.join("\n");
 }
 
+const GROUP_OPEN = /^(\s*)([A-Za-z0-9_]+)\s*:\s*$/;
+const INLINE_EDGE = /^(\s*)([A-Za-z0-9_]+)\s*-([^>\n]*)>\s*([A-Za-z0-9_]+)(\s*\{)?\s*$/;
+const GROUP_EDGE = /^(\s*)-([^>\n]*)>\s*([A-Za-z0-9_]+)(\s*\{)?\s*$/;
+
+/** Where one edge is written, and whether it already carries a note block. */
+interface EdgeLine {
+  /** Index of the flow line. */
+  index: number;
+  /** Leading whitespace of that line. */
+  indent: string;
+  /** The line rebuilt from `label`, without a trailing `{`. */
+  render: (label: string) => string;
+  /** A `{ … }` note block opens on this line. */
+  open: boolean;
+  /** Index of the block's closing `}`; -1 when there is no block. */
+  close: number;
+}
+
+/** Index of the `}` closing a note block opened on `openAt`, or -1. */
+function noteBlockClose(lines: string[], openAt: number, end: number): number {
+  const indent = lines[openAt]!.length - lines[openAt]!.trimStart().length;
+  for (let i = openAt + 1; i < end; i++) {
+    const t = lines[i]!.trim();
+    if (t === "}") return i;
+    if (t !== "" && lines[i]!.length - lines[i]!.trimStart().length <= indent) return -1;
+  }
+  return -1;
+}
+
+/**
+ * Locate the first flow line matching this edge. Note-block bodies are skipped
+ * so a `key:` inside a note can never be mistaken for a group header.
+ */
+function findEdgeLine(
+  lines: string[],
+  start: number,
+  end: number,
+  edge: { source: string; target: string; label: string },
+): EdgeLine | null {
+  let group: string | null = null;
+
+  for (let i = start; i < end; i++) {
+    const line = lines[i]!;
+
+    const inl = INLINE_EDGE.exec(line);
+    const grp = inl ? null : GROUP_EDGE.exec(line);
+
+    if (inl || grp) {
+      const indent = (inl ? inl[1] : grp![1])!;
+      const src = inl ? inl[2]! : group;
+      const rawLabel = (inl ? inl[3] : grp![2])!;
+      const tgt = (inl ? inl[4] : grp![3])!;
+      const open = (inl ? inl[5] : grp![4]) !== undefined;
+      if (inl) group = null;
+
+      const close = open ? noteBlockClose(lines, i, end) : -1;
+
+      if (src === edge.source && tgt === edge.target && cleanLabel(rawLabel) === edge.label) {
+        const seg = (label: string) => (label.trim() === "" ? "->" : `-${label.trim()}>`);
+        return {
+          index: i,
+          indent,
+          render: (label) =>
+            inl ? `${indent}${inl[2]} ${seg(label)} ${tgt}` : `${indent}${seg(label)} ${tgt}`,
+          open,
+          close,
+        };
+      }
+
+      // Not our edge — jump past its note block so we don't walk into it.
+      if (close !== -1) i = close;
+      continue;
+    }
+
+    const gOpen = GROUP_OPEN.exec(line);
+    if (gOpen) {
+      group = gOpen[2]!;
+      continue;
+    }
+
+    if (/^@/.test(line)) group = null;
+  }
+  return null;
+}
+
 /** Rewrite the label on the first flow line that matches this edge. */
 export function setEdgeLabel(
   src: string,
@@ -133,35 +218,38 @@ export function setEdgeLabel(
 ): string {
   const lines = src.split("\n");
   const { start, end } = docSpan(lines, docName);
-  const seg = newLabel.trim() === "" ? "->" : `-${newLabel.trim()}>`;
+  const hit = findEdgeLine(lines, start, end, edge);
+  if (!hit) return src;
+  lines[hit.index] = `${hit.render(newLabel)}${hit.open ? " {" : ""}`;
+  return lines.join("\n");
+}
 
-  let group: string | null = null;
-  for (let i = start; i < end; i++) {
-    const line = lines[i]!;
+/**
+ * Replace / add / remove the `{ … }` note block on an edge.
+ * An empty `data` (or one whose values are all blank) removes the block and the
+ * `{` that opened it; anything else regenerates the body in place.
+ */
+export function setEdgeNote(
+  src: string,
+  docName: string,
+  edge: { source: string; target: string; label: string },
+  data: Record<string, string>,
+): string {
+  const lines = src.split("\n");
+  const { start, end } = docSpan(lines, docName);
+  const hit = findEdgeLine(lines, start, end, edge);
+  if (!hit) return src;
 
-    const gOpen = /^(\s*)([A-Za-z0-9_]+)\s*:\s*$/.exec(line);
-    if (gOpen) {
-      group = gOpen[2]!;
-      continue;
-    }
+  const entries = Object.entries(data).filter(([k, v]) => k.trim() !== "" && v.trim() !== "");
+  const body = entries.map(([k, v]) => `${hit.indent}  ${k}: ${v}`);
+  const head = hit.render(edge.label);
 
-    const inl = /^(\s*)([A-Za-z0-9_]+)\s*-([^>\n]*)>\s*([A-Za-z0-9_]+)(\s*\{)?\s*$/.exec(line);
-    if (inl) {
-      group = null;
-      if (inl[2] === edge.source && inl[4] === edge.target && cleanLabel(inl[3]!) === edge.label) {
-        lines[i] = `${inl[1]}${inl[2]} ${seg} ${inl[4]}${inl[5] ? " {" : ""}`;
-        break;
-      }
-      continue;
-    }
+  // Everything currently occupied by the edge line plus its block.
+  const span = hit.open && hit.close !== -1 ? hit.close - hit.index + 1 : 1;
 
-    const grp = /^(\s*)-([^>\n]*)>\s*([A-Za-z0-9_]+)(\s*\{)?\s*$/.exec(line);
-    if (grp && group === edge.source && grp[3] === edge.target && cleanLabel(grp[2]!) === edge.label) {
-      lines[i] = `${grp[1]}${seg} ${grp[3]}${grp[4] ? " {" : ""}`;
-      break;
-    }
+  const replacement =
+    entries.length > 0 ? [`${head} {`, ...body, `${hit.indent}}`] : [head];
 
-    if (/^@/.test(line)) group = null;
-  }
+  lines.splice(hit.index, span, ...replacement);
   return lines.join("\n");
 }

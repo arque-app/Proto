@@ -499,5 +499,56 @@ const resolve = (p: string): string | undefined => FILES[p.split("/").pop()!.rep
   ok("dedupe warns", r.warnings.some((w) => /renamed to "main_2"/.test(w.message)));
 }
 
+// 31. node-type standard: an off-vocabulary type warns in loose, errors in strict
+{
+  const src = `@nodes\n  A = widget\n  B = page\n@flow\n  A -go> B\n`;
+  const loose = parse(src, { strict: false });
+  ok("unknown type warns in loose", loose.warnings.some((w) => /unknown node type "widget"/.test(w.message)));
+  ok("unknown type still parses", loose.ok);
+  eq("unknown type is preserved", loose.doc.nodes[0]!.type, "widget");
+
+  const strict = parse(src);
+  ok("unknown type errors in strict", strict.errors.some((e) => /unknown node type "widget"/.test(e.message)));
+}
+
+// 32. every standard type is accepted without complaint
+{
+  const r = parse(
+    `@nodes\n  P = page\n  A = api\n  D = decision\n  E = event\n  F = flow\n`,
+    { strict: false },
+  );
+  eq("no type warnings for the standard set", r.warnings.length, 0);
+}
+
+// 33. an auto-created node is "unknown" but is not also reported as a bad type
+{
+  const r = parse(`@nodes\n  A = page\n@flow\n  A -go> Ghost\n`, { strict: false });
+  eq("one warning only", r.warnings.length, 1);
+  ok("and it is the auto-create one", /auto-created/.test(r.warnings[0]!.message));
+}
+
+// 34. strict mode hints at a standard type's missing expected keys
+{
+  const r = parse(`@nodes\n  Fetch = api\n@node Fetch {\n  method: GET\n}\n@flow\n  Fetch -ok> Fetch\n`);
+  ok("missing key hinted", r.warnings.some((w) => /api "Fetch" is missing "path"/.test(w.message)));
+  ok("hint is not an error", r.ok, JSON.stringify(r.errors));
+
+  const withUrl = parse(
+    `@nodes\n  Fetch = api\n@node Fetch {\n  method: GET\n  url: https://x.dev/y\n}\n@flow\n  Fetch -ok> Fetch\n`,
+  );
+  eq("url satisfies path", withUrl.warnings.length, 0);
+}
+
+// 35. dotted execution keys survive the kv lexer
+{
+  const r = parse(
+    `@nodes\n  Login = api\n@node Login {\n  method: POST\n  path: /auth\n` +
+      `  header.Authorization: Bearer {token}\n  capture.token: $.data.token\n}\n`,
+    { strict: false },
+  );
+  eq("dotted header key", r.doc.nodes[0]!.data["header.Authorization"], "Bearer {token}");
+  eq("dotted capture key", r.doc.nodes[0]!.data["capture.token"], "$.data.token");
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

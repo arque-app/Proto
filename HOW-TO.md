@@ -58,12 +58,45 @@ LoginScreen = page   # also a comment (after whitespace)
 - **id** — letters, digits, underscore only: `[A-Za-z0-9_]`.
   - OK: `LoginScreen`, `auth_login`, `v2Checkout`
   - Rejected: `login-screen` (dash), `/auth/login` (slash), `Login Screen` (space), `cart.v2` (dot)
-- **type** — same charset. `page` and `api` are colour-coded (blue / green). Any
-  other word is valid too — it renders as a neutral **grey box tagged with the
-  type name** (`decision`, `loop`, `guard`, …), not silently mislabelled as a
-  page. Use a custom type for a client-side branch or guard step that is neither
-  a screen nor an endpoint. It still counts in the `demo.ts` type breakdown.
+- **type** — one of the five standard types below.
 - Every box referenced in `@flow` must be declared here, or the parser errors.
+
+### The five node types
+
+The type is what makes a diagram mean something rather than just look like
+something. Pick from this vocabulary:
+
+| type | what it is | colour | glyph |
+|---|---|---|---|
+| `page` | a screen the user lands on | blue | a window |
+| `api` | an HTTP request the app makes | green | two arrows |
+| `decision` | a branch — the outgoing arrows are the answers | amber | a fork |
+| `event` | something that happens *to* the app: cold start, push, deep link, webhook | pink | a burst |
+| `flow` | a portal standing for another doc (`@doc` / `@fof`) | violet | a doorway |
+
+Each type has keys it is expected to carry, and keys that are merely useful:
+
+| type | expected | also understood |
+|---|---|---|
+| `page` | — | `route`, `title`, `image`, `note` |
+| `api` | `method`, `path` (or `url`) | `body`, `auth`, `expect`, `header.<Name>`, `query.<name>`, `capture.<var>`, `note` |
+| `decision` | — | `condition`, `note` |
+| `event` | — | `source`, `payload`, `note` |
+| `flow` | `doc` | `note` |
+
+Only the keys in **expected** are checked, because only those stop the node from
+doing its job: an `api` that names no request can't be sent, a `flow` portal
+that names no doc leads nowhere. A bare `Login = page` is a complete, correct
+node — sketching stays cheap.
+
+**A type outside this list still parses and still draws** (grey, dashed accent,
+tagged with whatever you wrote). It warns in loose mode and errors in `strict`.
+The vocabulary is a standard, not a cage — but if you find yourself inventing
+one, check first whether `decision` or `event` already covers it.
+
+**`unknown`** is not a type you write. It is what the parser gives a node that
+`@flow` referenced but `@nodes` never declared, and it renders with a dashed
+border so the gap is visible.
 
 ---
 
@@ -108,6 +141,45 @@ nothing is limited to `method` / `path` / `auth`.
 > The same `{ … }` block works on a **flow arrow** too, when the rationale
 > belongs to the transition rather than to either box — see
 > [Edge notes](#edge-notes) under `@flow`.
+
+### `api` keys are execution-ready
+
+FML's north star is *running* a flow as an API test (see
+`lore/ideas/flow-execution.md`). Nothing executes yet, but the `api` key set is
+already the one the runner will use, so what you write today will run later
+without a rewrite:
+
+```
+@meta
+  base: https://api.example.com
+
+@node authLogin {
+  method: POST
+  path: /auth/login
+  body: {"email": "{email}", "password": "{password}"}
+  capture.token: $.data.token
+  expect: 200
+}
+
+@node getCart {
+  method: GET
+  path: /cart
+  header.Authorization: Bearer {token}
+  query.expand: items
+  expect: 200
+}
+```
+
+- `path` resolves against `@meta base:`; `url` is a full URL instead.
+- `header.<Name>`, `query.<name>` and `capture.<var>` are **dotted keys** — the
+  suffix is the header/param/variable name, so each can appear any number of
+  times in one block.
+- `{name}` is a **variable reference**. `capture.token: $.data.token` pulls a
+  value out of one response (JSONPath) so a later node can spend it as `{token}`.
+- `expect:` is the status the runner will assert — `200`, or `200,201`.
+
+Today these are ordinary metadata keys: they render on the box and nothing
+validates their contents. Write them anyway.
 
 ---
 
@@ -202,9 +274,11 @@ Works on grouped arrows too:
 | Screen calls an endpoint | `page -trigger> api` |
 | Endpoint response routes somewhere | `api -status> page` |
 | Success / failure / empty branch | multiple labelled arrows from the `api` node |
-| Deep link / push / cold start | arrow out of an entry `page` (e.g. `Splash`, `Entry`) |
-| Client-side branch (has-token? role check?) | a node with a custom type like `decision`, then one labelled arrow per outcome |
+| Deep link / push / cold start / webhook | an `event` node, with `source:` naming the trigger |
+| Client-side branch (has-token? role check?) | a `decision` node, then one labelled arrow per outcome |
+| A sub-journey that deserves its own diagram | a `flow` node with `doc:`, plus the `@doc` / `@fof` it points at |
 | Why a box / branch exists | `note:` in that node's `@node { }` block |
+| Why a *transition* is the way it is | a `{ note: … }` block on the arrow |
 
 **Naming convention**
 
@@ -276,9 +350,12 @@ Works on grouped arrows too:
 - **Edge note brace on the same line too:** `A -x> B {` ✅ — the `{` cannot sit
   on its own line; close the block with `}` alone on a line.
 - Reusing a node id across many arrows is fine — it's the same box.
-- **Custom node types are not errors.** Anything that isn't `page` / `api`
-  renders grey, tagged with its type name. Only an unknown `@directive` errors.
+- **Off-standard node types are not errors in loose mode.** Anything outside
+  `page` / `api` / `decision` / `event` / `flow` renders grey and warns; under
+  `strict` it errors. Only an unknown `@directive` always errors.
 - **Unknown `@node` keys are not errors.** Every key renders on the box.
+- **Key charset is `[A-Za-z0-9_.-]`.** The `.` is what makes `header.Accept`,
+  `query.page` and `capture.token` work.
 - **Blank lines are ignored today.** Use them to visually group related flows;
   a future version will treat a blank line as a boundary between separate
   diagrams, so organising with them now is future-proof.
@@ -297,7 +374,9 @@ Works on grouped arrows too:
 | `@node X block is missing a closing "}"` | add the `}` |
 | `unrecognised flow line: "…"` | the line isn't a valid arrow or `id:` header |
 | `edge note block for "X -> Y" is missing a closing "}"` | add the `}` for that edge's `{ … }` block |
-| `unknown directive: "@…"` | only `@meta`, `@nodes`, `@node`, `@flow` are valid |
+| `unknown directive: "@…"` | only `@meta`, `@nodes`, `@node`, `@flow`, `@doc`, `@fof` are valid |
+| `unknown node type "X" for "Y"` | use one of the five standard types, or accept the warning |
+| `api "X" is missing "method", "path"` | strict-mode hint — add the keys, or turn strict off while sketching |
 
 ---
 
@@ -335,7 +414,21 @@ Add `--json` to also dump the parsed `{ meta, nodes, edges }`.
 ### Viewer
 
 `npm run dev`, open `http://localhost:5173`, click **Open .fml** (or paste into
-the **Source** panel to edit live and watch it re-render).
+the **Source** panel to edit live and watch it re-render). Drag-and-drop works
+too, and multi-select pulls in a whole `@fof` set at once.
+
+What the viewer gives you beyond the picture:
+
+- **Click a node or an arrow** → the right-hand property panel. Editing there
+  writes straight back into the `.fml` source, into the right file when the doc
+  came in through `@fof`. Comments and layout survive the edit.
+- The panel knows the standard: it lists the type's expected keys as one-click
+  chips and explains what the type means.
+- **Double-click a `flow` node** to drill into the doc its `doc:` key names.
+- **strict** toggles the linting: off while you sketch, on before you hand the
+  file over.
+- **Esc** clears the selection, **⌘\\** hides the sidebar, **Save** downloads the
+  entry file, **Reset** restores the sample.
 
 ---
 

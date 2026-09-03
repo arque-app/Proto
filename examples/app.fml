@@ -1,4 +1,9 @@
-# app.fml — three unrelated journeys in one map
+# app.fml — three unrelated journeys in one map.
+# The smallest useful file: a roster, a couple of api nodes, and the wiring.
+
+@meta
+  title: App
+  base: https://api.example.com
 
 @nodes
   Login = page
@@ -10,6 +15,20 @@
   Receipt = page
   Settings = page
   Profile = page
+
+@node authApi {
+  method: POST
+  path: /auth/login
+  capture.token: $.data.token
+  expect: 200
+}
+
+@node payApi {
+  method: POST
+  path: /payments
+  header.Authorization: Bearer {token}
+  expect: 200
+}
 
 @flow
   Login -submit> authApi

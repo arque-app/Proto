@@ -14,10 +14,16 @@
   --color-ink-mute: #6b6b6b;
 
   --color-accent: #a78bfa;
+
+  /* One colour per standard node type — see src/fml/nodeTypes.ts. */
   --color-page: #6bb6ff;
   --color-api: #5fd0a8;
-  --color-flow: #a78bfa;
   --color-decision: #f0b45e;
+  --color-event: #f2789a;
+  --color-flow: #a78bfa;
+
+  --color-danger: #f2777a;
+  --color-warn: #e8b055;
 
   --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", Menlo, monospace;
   --font-brand: "Lexend", ui-sans-serif, system-ui, sans-serif;
@@ -61,11 +67,23 @@ body {
   display: none;
 }
 .react-flow__edge-path {
-  transition: stroke 0.12s ease;
+  transition:
+    stroke 0.12s ease,
+    stroke-width 0.12s ease;
 }
-.react-flow__edge:hover .react-flow__edge-path,
-.react-flow__edge.selected .react-flow__edge-path {
+.react-flow__edge:hover .react-flow__edge-path {
   stroke: var(--color-ink) !important;
+}
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--color-accent) !important;
+  stroke-width: 2 !important;
+}
+/* React Flow's stock selection outline — the node card draws its own. */
+.react-flow__node.selected,
+.react-flow__node:focus,
+.react-flow__node:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 .react-flow__handle {
   border: none !important;
