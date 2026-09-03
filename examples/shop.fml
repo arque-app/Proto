@@ -1,0 +1,91 @@
+# ShopApp — a fuller example: pages + APIs, a decision node, grouped
+# branches, edge notes, and a label override on each endpoint.
+
+@meta
+  title: ShopApp — Browse to Checkout
+  version: 0.2
+
+@nodes
+  Splash        = page
+  HasSession    = decision
+  SignIn        = page
+  Feed          = page
+  ProductDetail = page
+  Cart          = page
+  Checkout      = page
+  OrderPlaced   = page
+  ErrorSheet    = page
+  authSession   = api
+  getFeed       = api
+  getProduct    = api
+  addToCart     = api
+  postOrder     = api
+
+@node HasSession {
+  note: reads the keychain, not a network call
+}
+
+@node authSession {
+  label: POST /auth/session
+  method: POST
+  path: /api/v1/auth/session
+}
+@node getFeed {
+  label: GET /feed
+  method: GET
+  path: /api/v1/feed?page=1
+}
+@node getProduct {
+  label: GET /product/:id
+  method: GET
+  path: /api/v1/product/{id}
+}
+@node addToCart {
+  label: POST /cart/items
+  method: POST
+  path: /api/v1/cart/items
+}
+@node postOrder {
+  label: POST /orders
+  method: POST
+  path: /api/v1/orders
+}
+
+@flow
+  Splash -cold start> HasSession
+  HasSession:
+    -valid> Feed
+    -missing or expired> SignIn
+
+  SignIn -tap sign in> authSession
+  authSession:
+    -200> Feed
+    -401> SignIn {
+      note: wrong credentials — stay on the form, show an inline error
+    }
+    -500> ErrorSheet {
+      note: infra failure only, never blame the user's input
+    }
+
+  Feed -on appear> getFeed
+  getFeed -200> Feed
+  Feed -tap item> getProduct
+  getProduct -200> ProductDetail
+
+  ProductDetail -add to cart> addToCart
+  addToCart:
+    -200> Cart
+    -409> ProductDetail {
+      note: item sold out between the list load and the tap
+    }
+
+  Cart -checkout> Checkout
+  Checkout -place order> postOrder
+  postOrder:
+    -201> OrderPlaced
+    -402> Checkout {
+      note: payment declined — back to the payment step, keep the cart intact
+    }
+    -500> ErrorSheet
+
+  OrderPlaced -continue shopping> Feed

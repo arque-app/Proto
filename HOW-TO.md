@@ -1,0 +1,352 @@
+# How to write FML
+
+FML (`.fml`) is a plain-text format for flowcharts of app navigation and API calls.
+You write text describing **what connects to what**; a parser turns it into
+`{ nodes, edges }` and a canvas renders it as a live flowchart. Positions are
+automatic — you never place boxes by hand.
+
+This document is the complete **v0.1** syntax. An LLM agent can read this and
+produce valid `.fml` for an existing app.
+
+---
+
+## Pipeline
+
+```
+.fml text  →  parse()  →  { meta, nodes, edges }  →  dagre auto-layout  →  canvas
+```
+
+Your job is to describe the graph. Layout, spacing, and routing are handled.
+
+---
+
+## File shape
+
+A file is a list of **sections**. Each section header sits at column 0 and starts with `@`:
+
+| Section | Purpose | Required |
+|---|---|---|
+| `@meta` | file-level info (title, etc.) | no |
+| `@nodes` | declare every box | yes (in practice) |
+| `@node <id> { … }` | attach details to one box; repeatable | no |
+| `@flow` | the arrows | yes |
+
+Section **order does not matter**. Blank lines and comments are ignored.
+
+### Comments
+
+```
+# whole-line comment
+LoginScreen = page   # also a comment (after whitespace)
+```
+
+`#` starts a comment at the start of a line or after a space/tab.
+
+---
+
+## `@nodes` — declare the boxes
+
+```
+@nodes
+  Splash       = page
+  LoginScreen  = page
+  authLogin    = api
+  Home         = page
+```
+
+- Syntax: `<id> = <type>`, one per line, indented.
+- **id** — letters, digits, underscore only: `[A-Za-z0-9_]`.
+  - OK: `LoginScreen`, `auth_login`, `v2Checkout`
+  - Rejected: `login-screen` (dash), `/auth/login` (slash), `Login Screen` (space), `cart.v2` (dot)
+- **type** — same charset. `page` and `api` are colour-coded (blue / green). Any
+  other word is valid too — it renders as a neutral **grey box tagged with the
+  type name** (`decision`, `loop`, `guard`, …), not silently mislabelled as a
+  page. Use a custom type for a client-side branch or guard step that is neither
+  a screen nor an endpoint. It still counts in the `demo.ts` type breakdown.
+- Every box referenced in `@flow` must be declared here, or the parser errors.
+
+---
+
+## `@node <id> { … }` — box details
+
+```
+@node authLogin {
+  method: POST
+  path: /api/v2/auth/login
+  auth: none
+}
+```
+
+- The header must be `@node <id> {` — the `{` is on the **same line**.
+- Body: `key: value`, indented, one per line.
+- **Everything after the first `:` is the value.** Colons, slashes, query strings, JSON all pass through unquoted:
+  `path: https://api.example.com/v2/cart?expand=items`
+- Close with `}` alone on a line.
+- **Repeatable** — a second `@node authLogin { … }` merges in more keys.
+- The `id` must also appear in `@nodes`.
+
+### Any key is allowed — including `note:` and `label:`
+
+The body is free-form. **Every key you write is rendered on the box**, in order —
+nothing is limited to `method` / `path` / `auth`.
+
+- **`note:`** — a sentence of rationale or context for this box. Renders as its
+  own row. Use it to record *why* something is the way it is.
+- **`label:`** — **overrides the displayed name.** The box shows this text
+  instead of the raw id, and `label` is not repeated in the metadata list. Keep
+  the id terse and code-like; put the human name here.
+
+```
+@node syncPlaid {
+  label: Sync Plaid
+  method: POST
+  path: /api/v2/plaid/sync
+  note: 10s flat poll, no backoff — tiered backoff was rejected as needless complexity
+}
+```
+
+> The same `{ … }` block works on a **flow arrow** too, when the rationale
+> belongs to the transition rather than to either box — see
+> [Edge notes](#edge-notes) under `@flow`.
+
+---
+
+## `@flow` — the arrows
+
+Every arrow means **source → target** (arrowhead at the target).
+Two equivalent ways to write one:
+
+### Inline
+
+```
+@flow
+  LoginScreen -tap login> authLogin
+  authLogin -200> Home
+  authLogin -401> LoginScreen
+```
+
+Form: `<source> -<label>> <target>`
+
+### Grouped — one source, many arrows
+
+```
+@flow
+  authLogin:
+    -200> Home
+    -401> LoginScreen
+    -500> ErrorScreen
+```
+
+Write `<source>:` then indent each `-<label>> <target>` line **deeper than** the
+`:` line. Each branch line is an arrow from that source. Use this for
+success/failure/empty branches off an API call.
+
+### Labels
+
+- The label is the text between `-` and `>`. Spaces allowed: `-tap continue>`.
+- `>` cannot appear inside a label.
+- `->` or `-->` means **no label**.
+- `-200,202>` is **one** arrow labelled `200,202` (not two arrows).
+- Use labels for the **trigger** (`tap login`, `onResume`, `deeplink`) or the
+  **response** (`200`, `401`, `timeout`, `error`).
+
+### API round-trips need two arrows
+
+```
+  ProfileScreen -open> getProfile
+  getProfile -200> ProfileScreen
+```
+
+### Edge notes
+
+An arrow can carry its own `{ … }` block — **same rules as a `@node` body** —
+for context that belongs to *that transition*, not to either box:
+
+```
+@flow
+  authLogin -401> LoginScreen {
+    note: token expired mid-flow, not a fresh 401
+  }
+```
+
+Works on grouped arrows too:
+
+```
+@flow
+  authLogin:
+    -200> Home
+    -500> ErrorScreen {
+      note: only fires on a cold DB, see incident 114
+    }
+```
+
+- The opening `{` is on the **same line as the arrow** (like `@node x {`). It
+  cannot go on its own line.
+- Close with `}` alone on a line. Body is `key: value`, indented deeper than the
+  arrow. `note:` is only a convention — any key works, same as `@node`.
+- **No `#` inside a note value.** `#` after a space starts a comment and the rest
+  of the line is dropped — write `incident 114`, not `incident #114`.
+- v0.2: edge notes are parsed into `edges[].data` (visible in `demo.ts --json`).
+  They are **not drawn on the canvas yet** — a custom edge component is a planned
+  follow-up.
+
+---
+
+## Modelling an app
+
+| App concept | FML |
+|---|---|
+| Activity / Fragment / screen / Composable | `page` node |
+| REST endpoint | `api` node + `method` / `path` in a `@node { }` block |
+| User navigates screen → screen | `page -action> page` |
+| Screen calls an endpoint | `page -trigger> api` |
+| Endpoint response routes somewhere | `api -status> page` |
+| Success / failure / empty branch | multiple labelled arrows from the `api` node |
+| Deep link / push / cold start | arrow out of an entry `page` (e.g. `Splash`, `Entry`) |
+| Client-side branch (has-token? role check?) | a node with a custom type like `decision`, then one labelled arrow per outcome |
+| Why a box / branch exists | `note:` in that node's `@node { }` block |
+
+**Naming convention**
+
+- Screens: PascalCase — `LoginScreen`, `CartScreen`, `OrderDetail`
+- Endpoints: camelCase describing the call — `authLogin`, `getCart`, `postCheckout`
+- Keep the HTTP path in the `@node` block, **not** in the id.
+
+---
+
+## Full example
+
+```
+@meta
+  title: MyApp — Auth + Cart
+
+@nodes
+  Splash        = page
+  LoginScreen   = page
+  Home          = page
+  CartScreen    = page
+  ErrorScreen   = page
+  authLogin     = api
+  getCart       = api
+  postCheckout  = api
+
+@node authLogin {
+  method: POST
+  path: /api/v2/auth/login
+}
+@node getCart {
+  method: GET
+  path: /api/v2/cart
+}
+@node postCheckout {
+  method: POST
+  path: /api/v2/checkout
+}
+
+@flow
+  Splash -token valid> Home
+  Splash -no token> LoginScreen
+
+  LoginScreen -tap login> authLogin
+  authLogin:
+    -200> Home
+    -401> LoginScreen
+    -500> ErrorScreen
+
+  Home -open cart> getCart
+  getCart -200> CartScreen
+
+  CartScreen -tap checkout> postCheckout
+  postCheckout:
+    -200> Home
+    -402> CartScreen
+    -500> ErrorScreen
+```
+
+---
+
+## Rules & gotchas
+
+- **Declare before use.** Every id in `@flow` must be in `@nodes`.
+- **ids are `[A-Za-z0-9_]` only.** A dash in an id breaks parsing — the parser
+  reads `-` as the start of an arrow.
+- **Indent group branch lines deeper than their `id:` line**, or they won't attach.
+- **One `>` per arrow.** Never put `>` inside a label.
+- **`@node` header brace on the same line:** `@node x {` ✅ — `@node x` then `{` ❌
+- **Edge note brace on the same line too:** `A -x> B {` ✅ — the `{` cannot sit
+  on its own line; close the block with `}` alone on a line.
+- Reusing a node id across many arrows is fine — it's the same box.
+- **Custom node types are not errors.** Anything that isn't `page` / `api`
+  renders grey, tagged with its type name. Only an unknown `@directive` errors.
+- **Unknown `@node` keys are not errors.** Every key renders on the box.
+- **Blank lines are ignored today.** Use them to visually group related flows;
+  a future version will treat a blank line as a boundary between separate
+  diagrams, so organising with them now is future-proof.
+
+---
+
+## What errors mean
+
+`parse()` returns `{ ok, errors, warnings }`, each issue carrying a `line` and
+`message`. If `ok` is `false`, fix the listed lines. Common messages:
+
+| Message | Fix |
+|---|---|
+| `flow references undeclared node "X"` | add `X` to `@nodes` |
+| `expected "<id> = <type>"` | malformed `@nodes` line |
+| `@node X block is missing a closing "}"` | add the `}` |
+| `unrecognised flow line: "…"` | the line isn't a valid arrow or `id:` header |
+| `edge note block for "X -> Y" is missing a closing "}"` | add the `}` for that edge's `{ … }` block |
+| `unknown directive: "@…"` | only `@meta`, `@nodes`, `@node`, `@flow` are valid |
+
+---
+
+## Testing a `.fml` file
+
+### CLI — `node scripts/demo.ts path/to/file.fml`
+
+The check to run when you **can't see the rendered canvas**. It prints `ok`,
+every error/warning with a line number, then a full structural read of the graph:
+
+```
+=== examples/app.fml ===
+ok: true
+
+  flows:        3
+    1. 4 nodes · 3 edges · entry: Login
+    2. 3 nodes · 2 edges · entry: Cart
+    3. 2 nodes · 2 edges · entry: (none — cyclic)
+  nodes:        9   (7 page · 2 api)
+  edges:        7
+  entry points: 2   (Cart, Login)
+  terminals:    3   (Denied, Home, Receipt)
+```
+
+| Line | Means | Catches |
+|---|---|---|
+| `flows: N` | N disconnected sub-graphs | a node you meant to wire that landed off on its own |
+| `entry: (none — cyclic)` | that flow has no in-degree-0 node | a loop with no way in |
+| `entry points` | every node nothing points at | a screen that should be reachable but isn't |
+| `terminals` | every node that points nowhere | a dead end you didn't intend |
+| `unwired` *(shown only if any)* | declared in `@nodes`, used in no arrow | a mistyped id, or a box you forgot to connect |
+
+Add `--json` to also dump the parsed `{ meta, nodes, edges }`.
+
+### Viewer
+
+`npm run dev`, open `http://localhost:5173`, click **Open .fml** (or paste into
+the **Source** panel to edit live and watch it re-render).
+
+---
+
+## Checklist before handing off a `.fml`
+
+- [ ] Every screen and endpoint is declared in `@nodes`
+- [ ] Types are `page` / `api`, or a deliberate custom type (`decision`, …)
+- [ ] All ids match `[A-Za-z0-9_]` (no dashes, dots, slashes, spaces)
+- [ ] Every id used in `@flow` exists in `@nodes`
+- [ ] Endpoint `method` + `path` live in `@node { }` blocks, not the id
+- [ ] Group branch lines are indented deeper than their `id:` line
+- [ ] Each arrow has exactly one `>`
+- [ ] Every edge `{ … }` note block opens on the arrow line and closes with `}`
+- [ ] No `#` inside a `note:` value (it starts a comment)

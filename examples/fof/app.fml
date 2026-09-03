@@ -1,0 +1,22 @@
+# Top-level app map. Each screen group lives in its own file, pulled in with
+# @fof — no extension, it's always .fml. A `flow` node is a portal into the
+# doc of the same name (drill-down comes with the viewer's doc tabs).
+
+@fof ./auth as auth
+@fof ./checkout as checkout
+
+@meta
+  title: MyApp — top level
+
+@nodes
+  Splash   = page
+  Home     = page
+  Auth     = flow
+  Checkout = flow
+
+@flow
+  Splash -ready> Home
+  Home -sign in> Auth
+  Home -cart> Checkout
+  Auth -done> Home
+  Checkout -done> Home

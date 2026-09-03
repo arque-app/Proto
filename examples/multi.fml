@@ -1,0 +1,63 @@
+# A file with more than one @doc. Each @doc is its own flow graph; node ids
+# are local to their doc. Step 2 will let a node in one doc point at another
+# (portal / drill-down); for now they're just separate diagrams in one file.
+
+@doc main
+
+@meta
+  title: App — top level
+
+@nodes
+  Splash   = page
+  Home     = page
+  Checkout = flow     # will become a portal to @doc checkout
+  Account  = flow     # portal to @doc account
+
+@flow
+  Splash -ready> Home
+  Home -cart> Checkout
+  Home -profile> Account
+  Checkout -done> Home
+  Account -back> Home
+
+@doc checkout
+
+@meta
+  title: Checkout sub-flow
+
+@nodes
+  CartReview = page
+  Address    = page
+  Payment    = page
+  Confirm    = page
+  postOrder  = api
+
+@node postOrder {
+  method: POST
+  path: /api/v1/orders
+}
+
+@flow
+  CartReview -next> Address
+  Address -next> Payment
+  Payment -place order> postOrder
+  postOrder:
+    -201> Confirm
+    -402> Payment {
+      note: declined — stay on payment, keep the cart
+    }
+
+@doc account
+
+@meta
+  title: Account sub-flow
+
+@nodes
+  Overview   = page
+  EditName   = page
+  saveName   = api
+
+@flow
+  Overview -edit> EditName
+  EditName -save> saveName
+  saveName -200> Overview

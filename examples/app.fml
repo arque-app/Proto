@@ -1,0 +1,24 @@
+# app.fml — three unrelated journeys in one map
+
+@nodes
+  Login = page
+  authApi = api
+  Home = page
+  Denied = page
+  Cart = page
+  payApi = api
+  Receipt = page
+  Settings = page
+  Profile = page
+
+@flow
+  Login -submit> authApi
+  authApi:
+    -200> Home
+    -401> Denied
+
+  Cart -checkout> payApi
+  payApi -200> Receipt
+
+  Settings -edit> Profile
+  Profile -save> Settings

@@ -1,0 +1,20 @@
+@meta
+  title: Auth
+
+@nodes
+  SignIn    = page
+  authLogin = api
+  Home      = page
+
+@node authLogin {
+  method: POST
+  path: /api/v1/auth/login
+}
+
+@flow
+  SignIn -tap sign in> authLogin
+  authLogin:
+    -200> Home
+    -401> SignIn {
+      note: wrong credentials, stay on the form
+    }

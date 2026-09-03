@@ -1,0 +1,19 @@
+@meta
+  title: Payment
+
+@nodes
+  PayForm  = page
+  charge   = api
+  Confirm  = page
+  Declined = page
+
+@node charge {
+  method: POST
+  path: /api/v1/payments/charge
+}
+
+@flow
+  PayForm -submit> charge
+  charge:
+    -200> Confirm
+    -402> Declined

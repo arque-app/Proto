@@ -1,0 +1,27 @@
+# auth.fml — login flow
+# node ids are [A-Za-z0-9_] only, so `not_found` not `not-found`
+
+@meta
+  title: Auth Flow
+  version: 0.1
+
+@nodes
+  Login = page
+  login = api
+  Dashboard = page
+  not_found = page
+  unauthorized = page
+
+@node login {
+  endpoint: https://api.example.com/auth/login
+  method: POST
+  auth: none
+}
+
+@flow
+  Login -click> login
+
+  login:
+    -200,202> Dashboard
+    -404> not_found
+    -403> unauthorized

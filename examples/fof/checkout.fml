@@ -1,0 +1,16 @@
+# checkout pulls in payment the same way — @fof nests.
+@fof ./payment as payment
+
+@meta
+  title: Checkout
+
+@nodes
+  CartReview = page
+  Address    = page
+  Payment    = flow
+  Confirm    = page
+
+@flow
+  CartReview -next> Address
+  Address -next> Payment
+  Payment -paid> Confirm

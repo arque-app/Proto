@@ -1,0 +1,251 @@
+{
+  "shorthand": "PAQ",
+  "tickets": [
+    {
+      "id": "PAQ-1",
+      "name": "Bootstrap Vite + React + TypeScript app",
+      "description": "",
+      "context": [],
+      "plan": null,
+      "status": "backlog",
+      "priority": "P0",
+      "tags": [
+        "setup",
+        "infra"
+      ],
+      "source": "Agent",
+      "created": "2026-07-24",
+      "assigned_to": null,
+      "started_at": null,
+      "completed_at": null,
+      "logs": [
+        {
+          "at": "2026-07-24T12:19:16.693427+00:00",
+          "event": "created",
+          "detail": "PAQ-1"
+        }
+      ]
+    },
+    {
+      "id": "PAQ-2",
+      "name": "Install and configure React Flow (@xyflow/react)",
+      "description": "",
+      "context": [],
+      "plan": null,
+      "status": "backlog",
+      "priority": "P0",
+      "tags": [
+        "setup",
+        "canvas"
+      ],
+      "source": "Agent",
+      "created": "2026-07-24",
+      "assigned_to": null,
+      "started_at": null,
+      "completed_at": null,
+      "logs": [
+        {
+          "at": "2026-07-24T12:19:16.700098+00:00",
+          "event": "created",
+          "detail": "PAQ-2"
+        }
+      ]
+    },
+    {
+      "id": "PAQ-3",
+      "name": "Install and configure Tailwind CSS",
+      "description": "",
+      "context": [],
+      "plan": null,
+      "status": "backlog",
+      "priority": "P0",
+      "tags": [
+        "setup",
+        "styling"
+      ],
+      "source": "Agent",
+      "created": "2026-07-24",
+      "assigned_to": null,
+      "started_at": null,
+      "completed_at": null,
+      "logs": [
+        {
+          "at": "2026-07-24T12:19:16.705024+00:00",
+          "event": "created",
+          "detail": "PAQ-3"
+        }
+      ]
+    },
+    {
+      "id": "PAQ-4",
+      "name": "Set up Firebase Hosting config (firebase.json)",
+      "description": "",
+      "context": [],
+      "plan": null,
+      "status": "backlog",
+      "priority": "P1",
+      "tags": [
+        "infra",
+        "deploy"
+      ],
+      "source": "Agent",
+      "created": "2026-07-24",
+      "assigned_to": null,
+      "started_at": null,
+      "completed_at": null,
+      "logs": [
+        {
+          "at": "2026-07-24T12:19:16.709278+00:00",
+          "event": "created",
+          "detail": "PAQ-4"
+        }
+      ]
+    },
+    {
+      "id": "PAQ-5",
+      "name": "Build infinite canvas with pan/zoom",
+      "description": "",
+      "context": [],
+      "plan": null,
+      "status": "backlog",
+      "priority": "P1",
+      "tags": [
+        "canvas"
+      ],
+      "source": "Agent",
+      "created": "2026-07-24",
+      "assigned_to": null,
+      "started_at": null,
+      "completed_at": null,
+      "logs": [
+        {
+          "at": "2026-07-24T12:19:16.713824+00:00",
+          "event": "created",
+          "detail": "PAQ-5"
+        }
+      ]
+    },
+    {
+      "id": "PAQ-6",
+      "name": "Build IconNode — custom node with icon + label + acquired toggle",
+      "description": "",
+      "context": [],
+      "plan": null,
+      "status": "backlog",
+      "priority": "P1",
+      "tags": [
+        "nodes"
+      ],
+      "source": "Agent",
+      "created": "2026-07-24",
+      "assigned_to": null,
+      "started_at": null,
+      "completed_at": null,
+      "logs": [
+        {
+          "at": "2026-07-24T12:19:16.718090+00:00",
+          "event": "created",
+          "detail": "PAQ-6"
+        }
+      ]
+    },
+    {
+      "id": "PAQ-7",
+      "name": "Build NodePalette — side panel to drag items from",
+      "description": "",
+      "context": [],
+      "plan": null,
+      "status": "backlog",
+      "priority": "P1",
+      "tags": [
+        "nodes",
+        "ui"
+      ],
+      "source": "Agent",
+      "created": "2026-07-24",
+      "assigned_to": null,
+      "started_at": null,
+      "completed_at": null,
+      "logs": [
+        {
+          "at": "2026-07-24T12:19:16.722228+00:00",
+          "event": "created",
+          "detail": "PAQ-7"
+        }
+      ]
+    },
+    {
+      "id": "PAQ-8",
+      "name": "Build edge drawing — directed connections between nodes",
+      "description": "",
+      "context": [],
+      "plan": null,
+      "status": "backlog",
+      "priority": "P1",
+      "tags": [
+        "edges"
+      ],
+      "source": "Agent",
+      "created": "2026-07-24",
+      "assigned_to": null,
+      "started_at": null,
+      "completed_at": null,
+      "logs": [
+        {
+          "at": "2026-07-24T12:19:16.726253+00:00",
+          "event": "created",
+          "detail": "PAQ-8"
+        }
+      ]
+    },
+    {
+      "id": "PAQ-9",
+      "name": "Build useMapStorage hook — localStorage save/load/export/import",
+      "description": "",
+      "context": [],
+      "plan": null,
+      "status": "backlog",
+      "priority": "P1",
+      "tags": [
+        "persistence"
+      ],
+      "source": "Agent",
+      "created": "2026-07-24",
+      "assigned_to": null,
+      "started_at": null,
+      "completed_at": null,
+      "logs": [
+        {
+          "at": "2026-07-24T12:19:16.730533+00:00",
+          "event": "created",
+          "detail": "PAQ-9"
+        }
+      ]
+    },
+    {
+      "id": "PAQ-10",
+      "name": "Build Toolbar — mode switcher (select / connect / pan)",
+      "description": "",
+      "context": [],
+      "plan": null,
+      "status": "backlog",
+      "priority": "P2",
+      "tags": [
+        "ui"
+      ],
+      "source": "Agent",
+      "created": "2026-07-24",
+      "assigned_to": null,
+      "started_at": null,
+      "completed_at": null,
+      "logs": [
+        {
+          "at": "2026-07-24T12:19:16.735207+00:00",
+          "event": "created",
+          "detail": "PAQ-10"
+        }
+      ]
+    }
+  ],
+  "counter": 11
+}
