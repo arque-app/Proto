@@ -58,14 +58,21 @@ Then, JB's ask: the step badge is now a button — click it and the canvas
 spotlights that node's one-hop neighbourhood (self badge fills, predecessors
 tagged PREV, successors NEXT, everything else → 20%). `trace` state in App,
 neighbour sets computed in FlowCanvas; clears on Esc / pane-click / doc switch.
-(6) DockPanel (`b27dd15`, deployed). JB wanted Walkthrough and Warnings out of
-their spots and collapsible. New `DockPanel` — a bottom-left/right floating
-card whose title bar is always shown and collapses the body to just that bar
-(state persisted per panel via `useLocalStorage`). Walkthrough left the sidebar
-for `WalkthroughPanel` (bottom-left); `buildWalkthrough` moved there; Sidebar
-no longer takes `edges`. `IssueList` → `DockPanel` bottom-right, still inset by
-open right panels. Zoom `<Controls>` moved to `bottom-center` so the three
-don't collide.
+(6) DockPanel + toolbar trim (`b27dd15` → `687ebfc`, deployed). JB wanted
+Walkthrough and Warnings out of their spots, collapsible, and the toolbar
+stripped down. New `DockPanel` — a bottom-corner floating card whose title bar
+is always shown and collapses the body to just that bar (state persisted per
+panel; `raise` prop lifts it above the zoom controls; collapsed state
+shrink-wraps its title). Walkthrough left the sidebar for `WalkthroughPanel`
+(now bottom-right, above the zoom controls); `buildWalkthrough` moved there;
+Sidebar no longer takes `edges`. Warnings/errors: `IssueList` deleted — the
+toolbar's count is now a button opening a dropdown (outside-click / Esc close
+via a capture-phase listener, since React Flow's pane eats bubble-phase
+events). Zoom `<Controls>` → `bottom-right`. Toolbar stripped: removed the
+node/edge stat readout, `TB`/`LR`, `strict`, `Fit`; layout is now permanently
+"TB" and parsing permanently loose (`useFmlChart(ws, activeDoc, "TB", false)`).
+Toolbar is Open / Save / Source / Reset + the issues dropdown. HOW-TO viewer
+section updated to match.
 Still open: long rank-skipping edges get a lonely lane; big graphs sprawl wide;
 badge is a 20px target (small); trace + selection are independent; trace is
 one-hop only (full up/down-stream chain would be a small change).
