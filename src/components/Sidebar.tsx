@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useReactFlow } from "@xyflow/react";
-import type { FmlEdge, FmlStats } from "../fml/index.ts";
+import type { FmlStats } from "../fml/index.ts";
 import type { FmlFlowNode } from "../types/chart.ts";
 import { kindColor, kindPlural } from "../lib/nodeStyle.ts";
 import { Glyph } from "./Glyph.tsx";
@@ -16,8 +16,6 @@ interface Props {
   onActiveDoc: (name: string) => void;
   /** Laid-out nodes of the active doc. */
   nodes: FmlFlowNode[];
-  /** Parsed edges of the active doc — used for the walkthrough. */
-  edges: FmlEdge[];
   stats: FmlStats;
   selection: Selection | null;
   onSelect: (sel: Selection | null) => void;
@@ -49,35 +47,6 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-interface WalkthroughStep {
-  source: string;
-  label: string;
-  target: string;
-  isBack: boolean;
-}
-
-function buildWalkthrough(nodes: FmlFlowNode[], edges: FmlEdge[]): WalkthroughStep[] {
-  const hasInbound = new Set(edges.map((e) => e.target));
-  const roots = nodes.filter((n) => !hasInbound.has(n.id)).map((n) => n.id);
-  // If everything is in a cycle (no root), start from the first node.
-  const queue = roots.length > 0 ? [...roots] : nodes.slice(0, 1).map((n) => n.id);
-
-  const steps: WalkthroughStep[] = [];
-  const visited = new Set<string>();
-
-  while (queue.length > 0) {
-    const id = queue.shift()!;
-    if (visited.has(id)) continue;
-    visited.add(id);
-    for (const e of edges.filter((e) => e.source === id)) {
-      const isBack = visited.has(e.target);
-      steps.push({ source: e.source, label: e.label, target: e.target, isBack });
-      if (!isBack) queue.push(e.target);
-    }
-  }
-  return steps;
-}
-
 export function Sidebar({
   files,
   entry,
@@ -87,15 +56,12 @@ export function Sidebar({
   activeDoc,
   onActiveDoc,
   nodes,
-  edges,
   stats,
   selection,
   onSelect,
   onCollapse,
 }: Props) {
   const { setCenter, getNode } = useReactFlow();
-
-  const walkthrough = useMemo(() => buildWalkthrough(nodes, edges), [nodes, edges]);
 
   const pick = (id: string) => {
     onSelect({ kind: "node", id });
@@ -202,32 +168,6 @@ export function Sidebar({
           </div>
         ))}
       </Section>
-
-      {walkthrough.length > 0 && (
-        <Section title="Walkthrough">
-          <div className="flex flex-col gap-1.5 px-1">
-            {walkthrough.map((step, i) => (
-              <div key={i} className="flex flex-col gap-0.5">
-                <div className="flex items-center gap-1 font-mono text-[10px]">
-                  <span className={step.isBack ? "text-ink-mute/60" : "text-ink-dim"}>
-                    {step.source}
-                  </span>
-                  <span className="text-ink-mute/50">→</span>
-                  <span className={step.isBack ? "text-ink-mute/60" : "text-ink-dim"}>
-                    {step.target}
-                  </span>
-                  {step.isBack && (
-                    <span className="ml-auto text-[9px] text-ink-mute/50">↩ loop</span>
-                  )}
-                </div>
-                {step.label && (
-                  <span className="ml-2 font-mono text-[9px] text-ink-mute/70">{step.label}</span>
-                )}
-              </div>
-            ))}
-          </div>
-        </Section>
-      )}
 
       <div className="mt-auto px-3.5 py-3 font-mono text-[10px] leading-relaxed text-ink-mute">
         {stats.nodes} nodes · {stats.edges} edges

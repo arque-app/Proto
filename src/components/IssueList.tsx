@@ -1,4 +1,5 @@
 import type { FmlIssue } from "../fml/index.ts";
+import { DockPanel } from "./DockPanel.tsx";
 
 interface Props {
   errors: FmlIssue[];
@@ -24,29 +25,29 @@ function Row({ issue, tone }: { issue: FmlIssue; tone: "err" | "warn" }) {
 export function IssueList({ errors, warnings, offset }: Props) {
   if (errors.length === 0 && warnings.length === 0) return null;
 
+  const title = (
+    <span className="flex gap-2">
+      {errors.length > 0 && (
+        <span className="text-danger">
+          {errors.length} error{errors.length === 1 ? "" : "s"}
+        </span>
+      )}
+      {warnings.length > 0 && (
+        <span className="text-warn">
+          {warnings.length} warning{warnings.length === 1 ? "" : "s"}
+        </span>
+      )}
+    </span>
+  );
+
   return (
-    <div
-      className="absolute bottom-3 left-3 z-10 max-h-[38%] w-[440px] max-w-[calc(100%-1.5rem)] overflow-auto rounded-xl border border-line bg-surface/95 p-1.5 backdrop-blur-md"
-      style={offset > 0 ? { right: offset + 12, width: "auto" } : undefined}
-    >
-      <div className="flex gap-2 px-1.5 pb-1 font-mono text-[10px] uppercase tracking-[0.08em]">
-        {errors.length > 0 && (
-          <span className="text-danger">
-            {errors.length} error{errors.length === 1 ? "" : "s"}
-          </span>
-        )}
-        {warnings.length > 0 && (
-          <span className="text-warn">
-            {warnings.length} warning{warnings.length === 1 ? "" : "s"}
-          </span>
-        )}
-      </div>
+    <DockPanel id="issues" side="right" inset={offset} title={title}>
       {errors.map((e, i) => (
         <Row key={`e${i}`} issue={e} tone="err" />
       ))}
       {warnings.map((w, i) => (
         <Row key={`w${i}`} issue={w} tone="warn" />
       ))}
-    </div>
+    </DockPanel>
   );
 }
