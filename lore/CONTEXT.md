@@ -52,9 +52,23 @@ the type standard, the execution-ready `api` key section and the viewer's
 capabilities.
 
 134 tests green (89 parse / 16 stats / 29 fmlEdit), typecheck + build clean.
-NOT verified visually — the Chrome extension wasn't connected this session, so
-every layout/colour claim above is from the code, not from a screenshot.
-NOT done: deploy (held for JB's review of the branch).
+
+**Review pass (same day, after JB said "take a look… deploy it"):** verified in
+the browser — 5 types render with per-type accent + glyph, property-panel edit
+writes back to source (method → PUT round-tripped), flow-node double-click
+drills into its doc. Fixed three things the render exposed: dagre used a flat
+190×72 per node so tall `api` cards overlapped neighbours (now estimates height
+from node data); auto-fit depended on the padding object, which changes on every
+selection, so each node click animated the viewport (now padding is read from a
+ref, fit only on graph change); edge stroke `#565656` was near-invisible on
+`#1b1b1b` (→ `#6f6f6f` / 1.75px). Also stripped stray NUL bytes from
+`toReactFlow.ts`'s pairKey separator that had made the file diff as binary.
+
+**Merged to `main` (`8111524`) and deployed** — live at https://protoarch.web.app.
+Branch `polish/design-and-node-standard` deleted.
+NOT done: `public/index.html` dead Firebase boilerplate still there (JB's call);
+`#`-in-value still eaten by the comment lexer (JB's call); no breadcrumb for
+portal drill-down; sidebar has no resize.
 Loaded: CLAUDE.md, GUARDRAILS.md, CONTEXT.md
 
 ### 2026-09-03 — JB / Claude (cont.) — property panel (edit → write .fml), dots, Lexend wordmark
