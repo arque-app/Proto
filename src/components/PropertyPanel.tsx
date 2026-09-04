@@ -26,6 +26,9 @@ interface Props {
   onCommitNode: (id: string, block: Record<string, string>, type: string) => void;
   onCommitEdgeLabel: (edge: FmlEdge, label: string) => void;
   onCommitEdgeNote: (edge: FmlEdge, data: Record<string, string>) => void;
+  /** Literal FML for the selected node — decl line + `@node { }` block. */
+  nodeCode: string;
+  onCommitNodeCode: (id: string, text: string) => void;
 }
 
 type Row = [string, string];
@@ -36,7 +39,7 @@ const keyLabel = "font-mono text-[10px] uppercase tracking-[0.08em] text-ink-mut
 const chip =
   "rounded-md border border-line px-1.5 py-0.5 font-mono text-[10px] text-ink-dim transition-colors hover:border-line-strong hover:text-ink";
 
-type PanelTab = "props" | "about";
+type PanelTab = "props" | "about" | "code";
 
 export function PropertyPanel({
   sel,
@@ -46,6 +49,8 @@ export function PropertyPanel({
   onCommitNode,
   onCommitEdgeLabel,
   onCommitEdgeNote,
+  nodeCode,
+  onCommitNodeCode,
 }: Props) {
   const node = sel.kind === "node" ? doc.nodes.find((n) => n.id === sel.id) : undefined;
   const edge = sel.kind === "edge" ? doc.edges.find((e) => e.id === sel.id) : undefined;
@@ -86,7 +91,7 @@ export function PropertyPanel({
 
       {node && (
         <div className="flex border-b border-line">
-          {(["props", "about"] as PanelTab[]).map((t) => (
+          {(["props", "about", "code"] as PanelTab[]).map((t) => (
             <button
               key={t}
               className={`flex-1 py-2 text-[11px] font-medium capitalize transition-colors ${
@@ -105,6 +110,13 @@ export function PropertyPanel({
       <div className="flex-1 overflow-y-auto p-3">
         {node && tab === "props" && <NodeForm key={sel.id} node={node} onCommit={onCommitNode} />}
         {node && tab === "about" && <AboutView node={node} inEdges={inEdges} outEdges={outEdges} />}
+        {node && tab === "code" && (
+          <CodeView
+            key={sel.id}
+            code={nodeCode}
+            onApply={(text) => onCommitNodeCode(node.id, text)}
+          />
+        )}
         {edge && (
           <EdgeForm
             key={sel.id}
@@ -188,6 +200,69 @@ function AboutView({
       {inEdges.length === 0 && outEdges.length === 0 && (
         <p className="text-[11px] italic text-ink-mute">No edges connected to this node.</p>
       )}
+    </div>
+  );
+}
+
+/** Raw FML for the node — decl line + `@node { }` block — editable and copyable. */
+function CodeView({ code, onApply }: { code: string; onApply: (text: string) => void }) {
+  const [text, setText] = useState(code);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    setText(code);
+  }, [code]);
+
+  const dirty = text !== code;
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    } catch {
+      /* clipboard unavailable */
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className={keyLabel}>fml</div>
+      <textarea
+        className={`${field} min-h-[220px] resize-y leading-relaxed`}
+        spellCheck={false}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+      />
+      <div className="flex items-center gap-1.5">
+        <button
+          className="rounded-md border border-line px-2 py-1 text-[11px] text-ink-dim transition-colors hover:bg-white/[0.06] hover:text-ink"
+          onClick={copy}
+        >
+          {copied ? "copied" : "copy"}
+        </button>
+        <button
+          className={`rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${
+            dirty ? "bg-ink text-bg hover:opacity-90" : "border border-line text-ink-mute"
+          }`}
+          disabled={!dirty}
+          onClick={() => onApply(text)}
+        >
+          apply
+        </button>
+        {dirty && (
+          <button
+            className="rounded-md px-2 py-1 text-[11px] text-ink-mute transition-colors hover:text-ink"
+            onClick={() => setText(code)}
+          >
+            revert
+          </button>
+        )}
+      </div>
+      <p className="text-[11px] leading-snug text-ink-mute">
+        Applies the type and the <span className="font-mono">@node</span> block. Comments inside the
+        block aren&apos;t kept.
+      </p>
     </div>
   );
 }

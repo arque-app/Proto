@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { analyze, parse, type FmlDoc, type FmlIssue, type FmlStats } from "../fml/index.ts";
-import { layout } from "../lib/layout.ts";
+import { layout, nodeRects, type NodeRect } from "../lib/layout.ts";
 import { toReactFlow } from "../lib/toReactFlow.ts";
 import type { FmlFlowNode, LayoutDirection } from "../types/chart.ts";
 import { makeResolver, type Workspace } from "../types/workspace.ts";
@@ -90,6 +90,55 @@ function fanEdges(edges: Edge[]): Edge[] {
 }
 
 /**
+ * Give each edge a label anchor (`data.lx/ly`) that isn't parked on top of a
+ * node. Start at the midpoint between the two node centres; if that lands
+ * inside any node box, slide it toward the source end, then sideways, until it
+ * clears. Gutter-routed back edges keep the anchor the edge renderer computes.
+ */
+function placeLabels(edges: Edge[], rects: Map<string, NodeRect>): Edge[] {
+  const boxes = [...rects.values()];
+  const hits = (x: number, y: number) =>
+    boxes.some((r) => x >= r.x - 2 && x <= r.x + r.w + 2 && y >= r.y - 2 && y <= r.y + r.h + 2);
+
+  return edges.map((e) => {
+    if (typeof e.data?.routed === "string") return e;
+    const s = rects.get(e.source);
+    const t = rects.get(e.target);
+    if (!s || !t) return e;
+
+    let mx = (s.cx + t.cx) / 2;
+    let my = (s.cy + t.cy) / 2;
+
+    if (hits(mx, my)) {
+      const dx = s.cx - t.cx;
+      const dy = s.cy - t.cy;
+      const len = Math.hypot(dx, dy) || 1;
+      const ux = dx / len;
+      const uy = dy / len;
+      let done = false;
+      for (let d = 10; d <= 160 && !done; d += 10) {
+        if (!hits(mx + ux * d, my + uy * d)) {
+          mx += ux * d;
+          my += uy * d;
+          done = true;
+        }
+      }
+      for (let d = 28; d <= 220 && !done; d += 14) {
+        if (!hits(mx + d, my)) {
+          mx += d;
+          done = true;
+        } else if (!hits(mx - d, my)) {
+          mx -= d;
+          done = true;
+        }
+      }
+    }
+
+    return { ...e, data: { ...e.data, lx: mx, ly: my } };
+  });
+}
+
+/**
  * Parse the workspace entry file (resolving `@fof` against the other files),
  * then lay out whichever doc is active.
  * `strict: false` keeps rendering a half-typed file — undeclared refs become
@@ -109,7 +158,7 @@ export function useFmlChart(
     const laid = layout(nodes, edges, dir);
     return {
       nodes: laid,
-      edges: fanEdges(routeBackEdges(edges, laid, dir)),
+      edges: placeLabels(fanEdges(routeBackEdges(edges, laid, dir)), nodeRects(laid)),
       stats: analyze(doc),
       doc,
       docs: res.file.docs.map((d) => d.name),

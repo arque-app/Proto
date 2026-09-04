@@ -104,6 +104,85 @@ export function setNodeBlock(
   return lines.join("\n");
 }
 
+/**
+ * The literal source for one node: its `@nodes` declaration line, then a blank
+ * line, then its `@node { … }` block (verbatim, if it has one). This is what the
+ * property panel's Code tab shows for direct editing / copying.
+ */
+export function nodeSource(src: string, docName: string, nodeId: string): string {
+  const lines = src.split("\n");
+  const { start, end } = docSpan(lines, docName);
+  const out: string[] = [];
+
+  const declRe = new RegExp(`^\\s*${nodeId}\\s*=\\s*[A-Za-z0-9_]+\\s*$`);
+  for (let i = start; i < end; i++) {
+    if (declRe.test(lines[i]!)) {
+      out.push(lines[i]!.trim());
+      break;
+    }
+  }
+
+  const headRe = new RegExp(`^\\s*@node\\s+${nodeId}\\s*\\{\\s*$`);
+  for (let i = start; i < end; i++) {
+    if (!headRe.test(lines[i]!)) continue;
+    if (out.length) out.push("");
+    for (let j = i; j < end; j++) {
+      out.push(lines[j]!);
+      if (lines[j]!.trim() === "}") break;
+    }
+    break;
+  }
+  return out.join("\n");
+}
+
+/**
+ * Write an edited Code-tab block back. `text` is parsed for a `<id> = <type>`
+ * line and/or a `@node <id> { … }` body; the type and the block are then applied
+ * through the same targeted edits as the form. Comments typed inside the block
+ * are not preserved (the block is regenerated), everything else in the file is.
+ */
+export function setNodeSource(
+  src: string,
+  docName: string,
+  nodeId: string,
+  text: string,
+): string {
+  const declRe = new RegExp(`^\\s*${nodeId}\\s*=\\s*([A-Za-z0-9_]+)\\s*$`);
+  const headRe = new RegExp(`^\\s*@node\\s+${nodeId}\\s*\\{\\s*$`);
+  const kvRe = /^\s*([A-Za-z0-9_.-]+)\s*:\s*(.*)$/;
+
+  let newType: string | null = null;
+  const data: Record<string, string> = {};
+  let inBlock = false;
+
+  for (const l of text.split("\n")) {
+    if (!inBlock) {
+      const dm = declRe.exec(l);
+      if (dm) {
+        newType = dm[1]!;
+        continue;
+      }
+    }
+    if (headRe.test(l)) {
+      inBlock = true;
+      continue;
+    }
+    if (inBlock) {
+      if (l.trim() === "}") {
+        inBlock = false;
+        continue;
+      }
+      if (l.trim() === "" || l.trimStart().startsWith("#")) continue;
+      const km = kvRe.exec(l);
+      if (km) data[km[1]!] = km[2]!;
+    }
+  }
+
+  let out = src;
+  if (newType) out = setNodeType(out, docName, nodeId, newType);
+  return setNodeBlock(out, docName, nodeId, data);
+}
+
 /** Change a node's type on its `@nodes` declaration line. */
 export function setNodeType(
   src: string,

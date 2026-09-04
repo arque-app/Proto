@@ -57,9 +57,10 @@ export function FlowEdge({
 
   // Spread this edge along its source/target side if it shares that point with
   // siblings. The shift is along the side (x for a top/bottom handle, y for a
-  // left/right one), so the endpoint stays on the node's border.
-  const outShift = fanShift(Number(data?.outIndex ?? 0), Number(data?.outCount ?? 1));
-  const inShift = fanShift(Number(data?.inIndex ?? 0), Number(data?.inCount ?? 1));
+  // left/right one), so the endpoint stays on the node's border. Gutter-routed
+  // back edges are already on their own line — don't shift them, it curls the path.
+  const outShift = routed ? 0 : fanShift(Number(data?.outIndex ?? 0), Number(data?.outCount ?? 1));
+  const inShift = routed ? 0 : fanShift(Number(data?.inIndex ?? 0), Number(data?.inCount ?? 1));
   const sx = sourceX + (horiz(sourcePosition) ? outShift : 0);
   const sy = sourceY + (horiz(sourcePosition) ? 0 : outShift);
   const tx = targetX + (horiz(targetPosition) ? inShift : 0);
@@ -76,6 +77,11 @@ export function FlowEdge({
     offset,
   });
 
+  // `placeLabels` (in useFmlChart) picks an anchor clear of every node box;
+  // fall back to the path's own midpoint when it didn't (routed edges).
+  const lx = typeof data?.lx === "number" ? data.lx : labelX;
+  const ly = typeof data?.ly === "number" ? data.ly : labelY;
+
   return (
     <>
       <BaseEdge id={id} path={path} markerEnd={markerEnd} style={style} interactionWidth={24} />
@@ -90,7 +96,7 @@ export function FlowEdge({
                 ? "bg-accent/15 text-ink ring-1 ring-accent/60"
                 : "bg-elevated text-ink-dim ring-1 ring-line"
             }`}
-            style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
+            style={{ transform: `translate(-50%, -50%) translate(${lx}px, ${ly}px)` }}
           >
             {label}
           </div>

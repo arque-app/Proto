@@ -1,6 +1,13 @@
 // Usage: node src/lib/fmlEdit.test.ts
 import { parse } from "../fml/index.ts";
-import { setEdgeLabel, setEdgeNote, setNodeBlock, setNodeType } from "./fmlEdit.ts";
+import {
+  nodeSource,
+  setEdgeLabel,
+  setEdgeNote,
+  setNodeBlock,
+  setNodeSource,
+  setNodeType,
+} from "./fmlEdit.ts";
 
 let passed = 0;
 let failed = 0;
@@ -203,6 +210,40 @@ const SINGLE = `# a comment
   const e = r.doc.edges.find((x) => x.source === "authApi" && x.target === "Login" && x.label === "201");
   ok("group still resolved past a note block", e !== undefined, JSON.stringify(r.doc.edges));
   ok("note survived the label edit", r.doc.edges.find((x) => x.label === "tap")!.data?.note === "see runbook");
+}
+
+// 15. nodeSource — decl line + verbatim block
+{
+  const s = nodeSource(SINGLE, "main", "authApi");
+  ok("decl line first", s.startsWith("authApi = api"), s);
+  ok("block included", s.includes("@node authApi {") && s.includes("method: POST"), s);
+  ok("closes the block", s.trimEnd().endsWith("}"), s);
+  const bare = nodeSource(SINGLE, "main", "Login");
+  ok("node with no block is just the decl", bare === "Login = page", bare);
+}
+
+// 16. setNodeSource — round-trips an edited block + type
+{
+  const edited = `authApi = api
+@node authApi {
+  method: PUT
+  path: /api/v2/login
+  auth: bearer
+}`;
+  const out = setNodeSource(SINGLE, "main", "authApi", edited);
+  const r = parse(out);
+  const n = r.doc.nodes.find((x) => x.id === "authApi")!;
+  ok("type kept", n.type === "api", n.type);
+  ok("value changed via code tab", n.data.method === "PUT" && n.data.path === "/api/v2/login");
+  ok("key added via code tab", n.data.auth === "bearer");
+  ok("comment + rest of file survive", out.includes("# a comment") && r.ok, JSON.stringify(r.errors));
+}
+
+// 17. setNodeSource — a retyped decl changes the node type
+{
+  const out = setNodeSource(SINGLE, "main", "Login", "Login = decision");
+  const r = parse(out);
+  ok("code-tab type swap", r.doc.nodes.find((x) => x.id === "Login")!.type === "decision");
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

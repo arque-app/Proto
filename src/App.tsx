@@ -10,7 +10,14 @@ import { WalkthroughPanel } from "./components/WalkthroughPanel.tsx";
 import { useFmlChart } from "./hooks/useFmlChart.ts";
 import { useLocalStorage } from "./hooks/useLocalStorage.ts";
 import { SAMPLE_FML } from "./lib/sample.ts";
-import { setEdgeLabel, setEdgeNote, setNodeBlock, setNodeType } from "./lib/fmlEdit.ts";
+import {
+  nodeSource,
+  setEdgeLabel,
+  setEdgeNote,
+  setNodeBlock,
+  setNodeSource,
+  setNodeType,
+} from "./lib/fmlEdit.ts";
 import { fileKey, type Workspace } from "./types/workspace.ts";
 
 const WS_KEY = "protoarque_fml_ws";
@@ -140,6 +147,19 @@ export function App() {
     [editTarget, writeFile],
   );
 
+  const commitNodeCode = useCallback(
+    (id: string, text: string) => {
+      writeFile((src) => setNodeSource(src, editTarget.docName, id, text));
+    },
+    [editTarget, writeFile],
+  );
+
+  // Literal FML for the selected node — shown in the property panel's Code tab.
+  const selNodeCode = useMemo(() => {
+    if (sel?.kind !== "node") return "";
+    return nodeSource(ws.files[editTarget.file] ?? "", editTarget.docName, sel.id);
+  }, [sel, ws.files, editTarget]);
+
   // Drilling into a `flow` portal: `doc:` names a doc in the parsed file.
   const openDoc = useCallback(
     (name: string) => {
@@ -246,6 +266,8 @@ export function App() {
               onCommitNode={commitNode}
               onCommitEdgeLabel={commitEdgeLabel}
               onCommitEdgeNote={commitEdgeNote}
+              nodeCode={selNodeCode}
+              onCommitNodeCode={commitNodeCode}
             />
           )}
 
