@@ -2,12 +2,36 @@
 
 **Focus:** FML — `.fml` Flowchart Markup Language: parser (`src/fml/`) + web viewer (React Flow + dagre)
 **Phase:** R&D — language standardised (5 node types), viewer redesigned; live at https://protoarch.web.app
-**Open:** node rename + add/delete node/edge (structural — needs an FmlDoc→text serializer, shared with `fml bundle`); breadcrumb for portal drill-down (the jump itself works); "Open folder" (File System Access API); **JB's protoArch logo PNG (Lexend 400) — remind him, then swap the sidebar text for it**; sidebar resize; label crowding on primary+reciprocal at one node; `#` in a value is still eaten by the comment lexer (JB's call); `public/index.html` is dead Firebase boilerplate
-**Next:** JB reviews branch `polish/design-and-node-standard`; then Variables (`{name}` interpolation, `@env`, `capture` resolution) toward executable flows
+**Open:** **layout is a mess — JB + his brother want a graph-relaxation pass** (post-dagre overlap/crossing reduction); node rename + add/delete node/edge (structural — needs an FmlDoc→text serializer); breadcrumb for portal drill-down (the jump itself works); "Open folder" (File System Access API); **JB's protoArch logo PNG (Lexend 400) — remind him, then swap the sidebar text for it**; sidebar resize; label crowding on primary+reciprocal at one node; `#` in a value is still eaten by the comment lexer (JB's call); `public/index.html` is dead Firebase boilerplate; repo renamed `Proto` → `ProtoArch` (git remote updated; `CLAUDE.md` / lore still say `arque-app/Proto`)
+**Next:** graph-relaxation layout pass; then Variables (`{name}` interpolation, `@env`, `capture` resolution) toward executable flows
 
 ---
 
 ## Log
+
+### 2026-09-04 — JB / Claude (cont.) — HOW-TO multi-file docs + reviewed/deployed a second agent's feature
+Two small asks. (1) HOW-TO.md was missing the multi-file / multi-flow syntax —
+added real sections for `@meta` (`title`, `base` → `api` path root), `@doc`
+(multiple flows per file, doc-local ids, no cross-doc arrows), portals (a `flow`
+node's `doc:` key), and `@fof` (`<path> as <name>`, no extension, nesting,
+circular-import handling). File-shape table, error table, hand-off checklist
+extended. Fixed a stale comment in `examples/multi.fml` that contradicted its own
+portal usage. `70e36bc`.
+(2) A different Claude session (Sonnet 4.6) pushed `a992180` straight to `main` —
+"About tab + Walkthrough". PropertyPanel gets a Props/About tab switcher; About
+surfaces the node's `note` as prose + lists inbound/outbound edges with labels.
+Sidebar gets a Walkthrough section: BFS-traces the active doc, renders a
+plain-text step list, marks loops with ↩. Reviewed the diff — additive, isolated
+to 2 components + one prop wire-through, style matches. typecheck + 134 tests +
+build green; both features verified in the browser. Deployed to
+https://protoarch.web.app.
+Nits noted, not blocking: `buildWalkthrough` re-filters edges in its loop
+(O(V·E), fine at this scale); `isBack` flags any already-visited target so
+convergent paths can get a spurious "loop" mark depending on BFS order;
+disconnected cycle-islands past the first component aren't walked.
+Naming (parked): FML = the language/format, protoArch = the product/company.
+Repo renamed to `arque-app/ProtoArch`; git remote updated.
+Loaded: CLAUDE.md, GUARDRAILS.md, CONTEXT.md
 
 ### 2026-09-04 — JB / Claude — node standard + full design pass  (branch `polish/design-and-node-standard`)
 JB: "think of urself as a senior designer and senior engineer and senior product
