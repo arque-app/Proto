@@ -79,10 +79,20 @@ from the toolbar too (Open / Save / Source only). Edge labels capped at
 the diagram and hides the node under it. Walkthrough: briefly moved into the
 sidebar, then back out to a `DockPanel` minimizable card **bottom-left**
 (opposite the bottom-right zoom controls). `Controls` at `bottom-right`.
-Still open: the fan-spread can put a small curl on a back edge (seen near
-`historyCompleteCheck` in JB's Plaid graph) — needs the real `.fml` to tune;
-edge labels can still sit over a node (capped, so readable, not a banner);
-long rank-skipping edges get a lonely lane; big graphs sprawl.
+(8) Label-vs-node avoidance + Code tab (`26511cf`, deployed). `layout.ts`
+exports `nodeRects` (boxes from the same size estimate dagre uses). New
+`placeLabels` in `useFmlChart` gives every non-routed edge a `data.lx/ly`
+anchor that isn't inside any node box — slides the midpoint toward the source
+end, then sideways, until clear; `FlowEdge` uses it. Routed back edges keep the
+gutter anchor and no longer get the fan-shift (that was curling the path — the
+artifact JB kept seeing near `historyCompleteCheck`). Property panel gets a
+third tab, **Code**: the selected node's literal FML (decl line + `@node { }`
+block) in a textarea with copy / apply / revert. `fmlEdit.ts` gains
+`nodeSource` (extract) and `setNodeSource` (parse edited text → type swap +
+block rewrite via the existing targeted edits — comments inside the block are
+not preserved). 4 new fmlEdit tests, 143 total.
+Still open: edge labels are now off nodes but the slide can look detached on a
+long jog; long rank-skipping edges get a lonely lane; big graphs sprawl.
 Still open: long rank-skipping edges get a lonely lane; big graphs sprawl wide;
 badge is a 20px target (small); trace + selection are independent; trace is
 one-hop only (full up/down-stream chain would be a small change).
