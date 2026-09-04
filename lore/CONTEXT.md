@@ -1,13 +1,60 @@
 # Context — F*ML
 
 **Focus:** FML — `.fml` Flowchart Markup Language: parser (`src/fml/`) + web viewer (React Flow + dagre)
-**Phase:** R&D — language standardised (5 node types) and now variable-aware (`@vars` + `capture` resolution); viewer redesigned with a physics-refined layout; live at https://protoarch.web.app, also reachable at https://fml.arque.app (custom domain, same Firebase project)
-**Open:** **live drag-reactive repulsion is still unverified with a real mouse** — redesigned to be drag-only (see log), confirmed statically at rest via DOM inspection (zero drift over time, zero overlaps), but browser automation here still can't produce a real press-and-hold gesture against this page, so the actual push-while-dragging feel needs JB; the "expand a flow/@fof node into a coloured bubble of its sub-doc" feature is designed but not built — next round; cross-doc variable scope is undecided — a `capture` in one `@doc` doesn't resolve a `{name}` in a doc it portals into via `flow`; node rename + add/delete node/edge (structural — needs an FmlDoc→text serializer); breadcrumb for portal drill-down (the jump itself works); "Open folder" (File System Access API); sidebar resize; label crowding on primary+reciprocal at one node; `#` in a value is still eaten by the comment lexer (JB's call); `public/index.html` is dead Firebase boilerplate; a handful of `lore/` reference docs (`GUARDRAILS.md`, `INDEX.md`, `architecture/*.md`, `ideas/*.md`, `testing/registry.md`) still say "protoArch" here and there — not yet swept, low-stakes
-**Next:** JB to verify the drag-repel feel with a real mouse; then the expand-into-bubble feature; the runner (execution engine, needs a CORS/backend story) — blocked on the cross-doc variable question
+**Phase:** R&D — language standardised (5 node types) and now variable-aware (`@vars` + `capture` resolution); viewer redesigned with a physics-refined layout; portal "bubble" expansion just built on `feature/portal-bubbles`, unmerged; live at https://protoarch.web.app, also reachable at https://fml.arque.app (custom domain, same Firebase project)
+**Open:** drag-repel feel confirmed by JB with a real mouse — resolved; the portal-bubble feature (below) is built and self-tested but **not reviewed by JB yet** — he's inspecting the branch himself before it merges to `main`; bubble contents are read/edit-only, not draggable (v1 scope call, see log); cross-doc variable scope is undecided — a `capture` in one `@doc` doesn't resolve a `{name}` in a doc it portals into via `flow` (now also relevant to bubble contents); node rename + add/delete node/edge (structural — needs an FmlDoc→text serializer); breadcrumb for portal drill-down (the jump itself works); "Open folder" (File System Access API); sidebar resize; label crowding on primary+reciprocal at one node; `#` in a value is still eaten by the comment lexer (JB's call); `public/index.html` is dead Firebase boilerplate; a handful of `lore/` reference docs (`GUARDRAILS.md`, `INDEX.md`, `architecture/*.md`, `ideas/*.md`, `testing/registry.md`) still say "protoArch" here and there — not yet swept, low-stakes
+**Next:** JB to review `feature/portal-bubbles` and give feedback; then the runner (execution engine, needs a CORS/backend story) — blocked on the cross-doc variable question
 
 ---
 
 ## Log
+
+### 2026-09-05 — JB / Claude (cont.) — Portal bubble expansion (feature/portal-bubbles)
+JB confirmed the drag-repel feel ("perfect") then asked for the fof/doc bubble
+feature: an expand toggle on `flow` portal nodes that unfolds the target doc
+inline, right under the card, wrapped in a tinted frame — same idea as
+expanding a group in Neo4j Bloom. He asked for this to land on a feature
+branch he'd review himself, not `main`, so: committed the pending session log
+to `main` (07c779c), cut `feature/portal-bubbles` from there, built the whole
+thing on it.
+
+Architecture: extracted the shared dagre → back-edge-routing → fan-out
+pipeline out of `useFmlChart.ts` into `src/lib/docGraph.ts`
+(`buildDocGraph`/`refineEdges`), reused by both the active doc and a new
+`src/lib/expandPortal.ts::expandPortal()` — lays out a target doc completely on
+its own, then re-homes it as a self-contained "bubble": one synthetic
+`bubble`-type container node (`src/components/nodes/BubbleNode.tsx`, tinted
+with `--color-flow`) holding the sub-doc's nodes as React Flow children
+(`parentId` + `extent:"parent"`), every id namespaced `${portalId}::${rawId}`
+to guarantee no collision with the active doc. `App.tsx` owns `expanded: Set
+<string>` state, a `bubbles` memo (one `expandPortal` call per expanded
+portal), merges bubble nodes/edges into what `FlowCanvas` actually renders,
+and resolves a bubble-child selection back to its real doc + raw id
+(`bubbleIdMap`) so property-panel edits write into the *correct* underlying
+file/doc — verified end to end in a real browser (edited a bubble child's
+`method` field, confirmed the write landed in the right `@doc` block and nowhere
+else).
+
+Scope calls made without a fresh check-in (flagged here for JB to challenge on
+review): bubble contents are **not draggable** — v1 treats it as a read/edit
+peek, not a rearrangeable mini-canvas, to sidestep parent-relative-drag +
+physics-with-nesting edge cases; bubble state doesn't persist — collapse
+forgets, next expand recomputes fresh from dagre; multiple bubbles can be open
+at once side by side, each independent; collapsing a bubble while something
+inside it is selected now clears the selection (was showing a confusing
+"element is no longer in the doc" message — fixed same session, caught via
+browser verification, not by JB).
+
+Verified: typecheck/tests/build all green, unaffected by the refactor (38
+tests, 0 failed). Browser-verified via a local dev server + `examples/multi.fml`
+(two sibling `@doc`s in one file) — single bubble expand/collapse, two bubbles
+open simultaneously (no overlap, confirmed via bounding-box checks across all
+12 rendered nodes), selection resolution, and a live property-panel edit
+round-tripping into the right doc's source text. Did **not** test real-mouse
+drag interaction (same tool limitation as the physics feature — this
+environment can't produce real pointerdown/up drag gestures).
+Not pushed anywhere — sits on `feature/portal-bubbles` for JB's review per his
+"cut a branch, I'll look and tell you what I want changed" instruction.
 
 ### 2026-09-05 — JB / Claude (cont.) — Physics redesigned to be drag-only
 JB tried the first version and gave sharp, specific feedback: **"the flowchart

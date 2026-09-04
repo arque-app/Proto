@@ -11,6 +11,7 @@ import {
   type Edge,
 } from "@xyflow/react";
 import { FmlNode } from "./nodes/FmlNode.tsx";
+import { BubbleNode } from "./nodes/BubbleNode.tsx";
 import { FlowEdge } from "./edges/FlowEdge.tsx";
 import { useForceLayout } from "../hooks/useForceLayout.ts";
 import { nodeSize } from "../lib/layout.ts";
@@ -19,7 +20,7 @@ import { TRACE_IN, TRACE_OUT } from "../lib/nodeStyle.ts";
 import type { FmlFlowNode, FmlNodeData } from "../types/chart.ts";
 import type { Selection } from "./PropertyPanel.tsx";
 
-const nodeTypes = { fml: FmlNode };
+const nodeTypes = { fml: FmlNode, bubble: BubbleNode };
 const edgeTypes = { flow: FlowEdge };
 
 /**
@@ -222,8 +223,11 @@ export function FlowCanvas({
         }}
         onNodeDragStart={() => {
           // Seed the push session from every node's current on-screen spot —
-          // at rest this is just dagre's own layout, unchanged.
-          force.onDragStart(nodes);
+          // at rest this is just dagre's own layout, unchanged. Bubble frames
+          // sit outside physics entirely (they're not draggable, and their own
+          // sized-for-content footprint doesn't match `nodeSize`'s generic
+          // card estimate) — their child cards still repel normally.
+          force.onDragStart(nodes.filter((n) => n.type !== "bubble"));
         }}
         onNodeDrag={(_, node) => {
           draggingId.current = node.id;

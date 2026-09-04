@@ -25,7 +25,7 @@ const RENDERABLE_IMAGE = /^(https?:|data:image\/)/i;
  * border so an undeclared reference is visible at a glance.
  */
 export function FmlNode({ id, data, selected }: NodeProps<FmlFlowNode>) {
-  const { label, kind, meta, dir, order, traceRole, onBadge } = data;
+  const { label, kind, meta, dir, order, traceRole, onBadge, expanded, onExpand } = data;
   const lr = dir === "LR";
   const primaryTarget = lr ? "left" : "top";
   const primarySource = lr ? "right" : "bottom";
@@ -80,6 +80,23 @@ export function FmlNode({ id, data, selected }: NodeProps<FmlFlowNode>) {
         >
           {traceRole === "in" ? "prev" : "next"}
         </div>
+      )}
+
+      {/* expand toggle — portals only. Unfolds the target doc inline as a
+          bubble right under this card, or collapses it back. */}
+      {portal && meta.doc && (
+        <button
+          type="button"
+          title={expanded ? `Collapse "${meta.doc}"` : `Expand "${meta.doc}" inline`}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            onExpand?.(id);
+          }}
+          className="nodrag absolute -right-9 -top-2.5 z-20 flex h-[20px] w-[20px] cursor-pointer items-center justify-center rounded-full border border-line bg-elevated text-[10px] text-ink-dim transition-colors hover:border-line-strong hover:text-ink"
+        >
+          {expanded ? "▾" : "▸"}
+        </button>
       )}
 
       {/* step number — its place in the flow. Click it to trace what connects here. */}

@@ -18,6 +18,8 @@ import {
   setNodeSource,
   setNodeType,
 } from "./lib/fmlEdit.ts";
+import { expandPortal, type BubbleGraph } from "./lib/expandPortal.ts";
+import { nodeSize } from "./lib/layout.ts";
 import { fileKey, type Workspace } from "./types/workspace.ts";
 
 const WS_KEY = "protoarque_fml_ws";
@@ -58,12 +60,91 @@ export function App() {
   const [sel, setSel] = useState<Selection | null>(null);
   // Node id whose neighbourhood is spotlighted, set by clicking a step badge.
   const [trace, setTrace] = useState<string | null>(null);
+  // Portal node ids currently unfolded inline as a bubble.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   // Layout is always top-down; strict validation stays off (loose mode).
   const chart = useFmlChart(ws, activeDoc, "TB", false);
 
-  // A trace id is doc-local; drop it whenever the doc or file changes.
-  useEffect(() => setTrace(null), [chart.activeDoc, ws.entry]);
+  // A trace id / expanded bubble is doc-local; drop both whenever the doc or file changes.
+  useEffect(() => {
+    setTrace(null);
+    setExpanded(new Set());
+  }, [chart.activeDoc, ws.entry]);
+
+  const toggleExpand = useCallback((id: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+        // Collapsing orphans anything selected inside that bubble — drop it
+        // rather than leave the property panel pointing at a namespaced id
+        // that no longer resolves to any rendered node.
+        setSel((s) => (s && s.id.startsWith(`${id}::`) ? null : s));
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  // One laid-out sub-graph per currently-expanded portal, anchored just below
+  // its card. Recomputed fresh from dagre every time — nothing here persists.
+  const bubbles = useMemo(() => {
+    const out: BubbleGraph[] = [];
+    for (const portalId of expanded) {
+      const portalNode = chart.nodes.find((n) => n.id === portalId);
+      if (!portalNode || portalNode.data.kind !== "flow") continue;
+      const targetName = portalNode.data.meta.doc;
+      const targetDoc = targetName ? chart.file.docs.find((d) => d.name === targetName) : undefined;
+      if (!targetDoc) continue;
+      const { w, h } = nodeSize(portalNode.data);
+      out.push(
+        expandPortal(
+          portalId,
+          { x: portalNode.position.x, y: portalNode.position.y, w, h },
+          targetDoc,
+          "TB",
+        ),
+      );
+    }
+    return out;
+  }, [expanded, chart.nodes, chart.file]);
+
+  // Namespaced bubble-child id -> the real doc + node id it stands in for.
+  const bubbleIdMap = useMemo(() => {
+    const m = new Map<string, { doc: string; rawId: string }>();
+    for (const b of bubbles) for (const [k, v] of b.idMap) m.set(k, v);
+    return m;
+  }, [bubbles]);
+
+  // What the canvas actually renders: the active doc's own graph, portal cards
+  // wired up to toggle their bubble, plus every expanded bubble's content.
+  const canvasNodes = useMemo(() => {
+    const withExpand = chart.nodes.map((n) =>
+      n.data.kind === "flow"
+        ? { ...n, data: { ...n.data, expanded: expanded.has(n.id), onExpand: toggleExpand } }
+        : n,
+    );
+    return [...withExpand, ...bubbles.flatMap((b) => b.nodes)];
+  }, [chart.nodes, expanded, toggleExpand, bubbles]);
+
+  const canvasEdges = useMemo(
+    () => [...chart.edges, ...bubbles.flatMap((b) => b.edges)],
+    [chart.edges, bubbles],
+  );
+
+  // A selection may be a bubble child — resolve it back to the doc + raw id
+  // it actually represents, so edits land in the right file.
+  const selResolved = useMemo(() => {
+    if (!sel) return null;
+    const mapped = bubbleIdMap.get(sel.id);
+    if (mapped) {
+      const doc = chart.file.docs.find((d) => d.name === mapped.doc);
+      if (doc) return { doc, rawId: mapped.rawId };
+    }
+    return { doc: chart.doc, rawId: sel.id };
+  }, [sel, bubbleIdMap, chart.file, chart.doc]);
 
   const addFiles = useCallback(
     (added: Record<string, string>) => {
@@ -105,13 +186,15 @@ export function App() {
     [setWs],
   );
 
-  // The file an edit to the active doc must be written back into.
+  // The file the current selection must be written back into — the active
+  // doc by default, or whichever doc a bubble-child selection resolves to.
   const editTarget = useMemo(() => {
-    const file = chart.doc.source ? fileKey(chart.doc.source) : ws.entry;
+    const doc = selResolved?.doc ?? chart.doc;
+    const file = doc.source ? fileKey(doc.source) : ws.entry;
     // Inside its own file an @fof'd doc is just "main".
-    const docName = chart.doc.source ? "main" : chart.doc.name;
+    const docName = doc.source ? "main" : doc.name;
     return { file, docName };
-  }, [chart.doc, ws.entry]);
+  }, [selResolved, chart.doc, ws.entry]);
 
   const writeFile = useCallback(
     (updater: (text: string) => string) => {
@@ -123,14 +206,15 @@ export function App() {
 
   const commitNode = useCallback(
     (id: string, block: Record<string, string>, type: string) => {
-      const node = chart.doc.nodes.find((n) => n.id === id);
+      const doc = selResolved?.doc ?? chart.doc;
+      const node = doc.nodes.find((n) => n.id === id);
       writeFile((text) => {
         let out = text;
         if (node && type !== node.type) out = setNodeType(out, editTarget.docName, id, type);
         return setNodeBlock(out, editTarget.docName, id, block);
       });
     },
-    [chart.doc, editTarget, writeFile],
+    [selResolved, chart.doc, editTarget, writeFile],
   );
 
   const commitEdgeLabel = useCallback(
@@ -156,9 +240,9 @@ export function App() {
 
   // Literal FML for the selected node — shown in the property panel's Code tab.
   const selNodeCode = useMemo(() => {
-    if (sel?.kind !== "node") return "";
-    return nodeSource(ws.files[editTarget.file] ?? "", editTarget.docName, sel.id);
-  }, [sel, ws.files, editTarget]);
+    if (sel?.kind !== "node" || !selResolved) return "";
+    return nodeSource(ws.files[editTarget.file] ?? "", editTarget.docName, selResolved.rawId);
+  }, [sel, selResolved, ws.files, editTarget]);
 
   // Drilling into a `flow` portal: `doc:` names a doc in the parsed file.
   const openDoc = useCallback(
@@ -236,8 +320,8 @@ export function App() {
 
         <div className="relative flex-1" onDrop={onDrop} onDragOver={(e) => e.preventDefault()}>
           <FlowCanvas
-            chartNodes={chart.nodes}
-            chartEdges={chart.edges}
+            chartNodes={canvasNodes}
+            chartEdges={canvasEdges}
             selection={sel}
             onSelect={setSel}
             onOpenDoc={openDoc}
@@ -258,10 +342,10 @@ export function App() {
             warnings={chart.warnings}
           />
 
-          {sel && (
+          {sel && selResolved && (
             <PropertyPanel
-              sel={sel}
-              doc={chart.doc}
+              sel={{ kind: sel.kind, id: selResolved.rawId }}
+              doc={selResolved.doc}
               shiftLeft={sourceOpen ? SOURCE_W : 0}
               onClose={() => setSel(null)}
               onCommitNode={commitNode}

@@ -17,6 +17,10 @@ export interface FmlNodeData {
   traceRole?: "self" | "in" | "out" | "dim";
   /** Toggle trace mode for a node id — wired in by FlowCanvas, called from the badge. */
   onBadge?: (id: string) => void;
+  /** True while this portal's target doc is unfolded inline as a bubble. Only meaningful on a `flow` node. */
+  expanded?: boolean;
+  /** Toggle inline expansion for a `flow` node — wired in by App, called from the expand button. */
+  onExpand?: (id: string) => void;
   /** React Flow requires node data to be an index signature. */
   [key: string]: unknown;
 }
