@@ -111,7 +111,22 @@ Also this round: `placeLabels` (item 8) was reverted one turn after shipping —
 it anchored on the straight centre-to-centre line while paths are orthogonal,
 so on a dense graph it flung labels away from their edges. Back to
 `getSmoothStepPath`'s own label point; kept the width cap.
-Still open: long rank-skipping edges get a lonely lane; big graphs sprawl.
+(10) Drag persistence (`362d73b`, deployed). JB: dragging a node then switching
+docs and back lost the move — `chartNodes` is recomputed fresh by dagre on
+every `useFmlChart` recompute (which fires on a doc switch), and the drag
+lived only in FlowCanvas's local React Flow state. Fix keeps positions **out
+of the `.fml`** (still layout-free by design) but persists them separately:
+new `src/lib/nodePositions.ts`, one localStorage blob keyed by doc (file + doc
+name — the same doc name can live in different `@fof` files) → node id →
+`{x,y}`. `useFmlChart` merges saved positions over the dagre result after
+`layout()` (and now also uses the *positioned* nodes, not the raw dagre ones,
+when deciding which edges are back-edges — more accurate once a node's been
+dragged). `FlowCanvas` saves on `onNodeDragStop` (drag end, immediately, no
+debounce; covers a multi-node drag). Verified: dragged Login, switched to
+checkout and back to main, it stayed put. HOW-TO viewer section updated
+(also caught it still mentioning the removed Reset button — fixed).
+Still open: long rank-skipping edges get a lonely lane; big graphs sprawl;
+dagre doesn't route other nodes around a hand-placed one on next layout.
 Still open: long rank-skipping edges get a lonely lane; big graphs sprawl wide;
 badge is a 20px target (small); trace + selection are independent; trace is
 one-hop only (full up/down-stream chain would be a small change).
