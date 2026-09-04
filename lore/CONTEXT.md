@@ -73,6 +73,16 @@ node/edge stat readout, `TB`/`LR`, `strict`, `Fit`; layout is now permanently
 "TB" and parsing permanently loose (`useFmlChart(ws, activeDoc, "TB", false)`).
 Toolbar is Open / Save / Source / Reset + the issues dropdown. HOW-TO viewer
 section updated to match.
+(7) Placement churn, settled (`33e37a7` → `ae08b93`, deployed). JB: Reset gone
+from the toolbar too (Open / Save / Source only). Edge labels capped at
+`max-w-[150px] truncate` + full text on hover — a long label no longer spans
+the diagram and hides the node under it. Walkthrough: briefly moved into the
+sidebar, then back out to a `DockPanel` minimizable card **bottom-left**
+(opposite the bottom-right zoom controls). `Controls` at `bottom-right`.
+Still open: the fan-spread can put a small curl on a back edge (seen near
+`historyCompleteCheck` in JB's Plaid graph) — needs the real `.fml` to tune;
+edge labels can still sit over a node (capped, so readable, not a banner);
+long rank-skipping edges get a lonely lane; big graphs sprawl.
 Still open: long rank-skipping edges get a lonely lane; big graphs sprawl wide;
 badge is a 20px target (small); trace + selection are independent; trace is
 one-hop only (full up/down-stream chain would be a small change).
