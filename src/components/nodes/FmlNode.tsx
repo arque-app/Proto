@@ -25,7 +25,7 @@ const RENDERABLE_IMAGE = /^(https?:|data:image\/)/i;
  * border so an undeclared reference is visible at a glance.
  */
 export function FmlNode({ data, selected }: NodeProps<FmlFlowNode>) {
-  const { label, kind, meta, dir } = data;
+  const { label, kind, meta, dir, order } = data;
   const lr = dir === "LR";
   const primaryTarget = lr ? "left" : "top";
   const primarySource = lr ? "right" : "bottom";
@@ -64,6 +64,20 @@ export function FmlNode({ data, selected }: NodeProps<FmlFlowNode>) {
       {/* the "there is another doc behind this" silhouette */}
       {portal && (
         <div className="absolute inset-0 -translate-y-1.5 translate-x-1.5 rounded-xl border border-line bg-surface" />
+      )}
+
+      {/* step number — its place in the flow, read top to bottom */}
+      {typeof order === "number" && (
+        <div
+          className="absolute -right-2.5 -top-2.5 z-20 flex h-[19px] min-w-[19px] items-center justify-center rounded-full border px-1 font-mono text-[10px] font-semibold tabular-nums"
+          style={{
+            borderColor: `color-mix(in srgb, ${accent} 45%, transparent)`,
+            background: "var(--color-elevated)",
+            color: `color-mix(in srgb, ${accent} 75%, var(--color-ink))`,
+          }}
+        >
+          {order}
+        </div>
       )}
 
       <div

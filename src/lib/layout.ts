@@ -54,6 +54,16 @@ export function layout(
 
   dagre.layout(g);
 
+  // Number nodes by dagre rank so each card can show its place in the flow.
+  // Nodes on the same rank (e.g. the branches of a decision) share a number —
+  // they happen at the same stage.
+  const ranks = [
+    ...new Set(
+      nodes.map((n) => g.node(n.id)?.rank).filter((r): r is number => typeof r === "number"),
+    ),
+  ].sort((a, b) => a - b);
+  const orderOfRank = new Map(ranks.map((r, i) => [r, i + 1]));
+
   return nodes.map((n) => {
     const p = g.node(n.id);
     const { w, h } = size.get(n.id)!;
@@ -62,7 +72,7 @@ export function layout(
       position: { x: p.x - w / 2, y: p.y - h / 2 },
       sourcePosition: dir === "LR" ? Position.Right : Position.Bottom,
       targetPosition: dir === "LR" ? Position.Left : Position.Top,
-      data: { ...n.data, dir },
+      data: { ...n.data, dir, order: orderOfRank.get(p?.rank ?? -1) },
     };
   });
 }

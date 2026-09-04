@@ -11,6 +11,8 @@ export interface FmlNodeData {
   meta: Record<string, string>;
   /** Current layout direction, so the custom node can place its handles. */
   dir: LayoutDirection;
+  /** 1-based flow position (dagre rank), for the step badge. Same-rank nodes share it. */
+  order?: number;
   /** React Flow requires node data to be an index signature. */
   [key: string]: unknown;
 }

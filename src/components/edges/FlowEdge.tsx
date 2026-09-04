@@ -2,27 +2,17 @@ import {
   BaseEdge,
   EdgeLabelRenderer,
   getSmoothStepPath,
-  Position,
   type EdgeProps,
 } from "@xyflow/react";
 
-/** Outward bow (px) for an edge routed around the nodes via a side handle. */
-const SIDE_BOW = 62;
-
-function awayFrom(p: Position): { x: number; y: number } {
-  if (p === Position.Left) return { x: -1, y: 0 };
-  if (p === Position.Right) return { x: 1, y: 0 };
-  if (p === Position.Top) return { x: 0, y: -1 };
-  return { x: 0, y: 1 };
-}
-
 /**
- * Edge renderer for FML flows.
- * - The primary edge of a node pair is an orthogonal (right-angle) step path,
- *   so a flow reads like a flowchart rather than a nest of curves.
- * - Reciprocal / repeated edges leave via a side handle (chosen in
- *   `toReactFlow`) and are drawn as a wide C-curve that bows away from the
- *   nodes, so they read as a route around rather than a straight line.
+ * Edge renderer for FML flows. Every edge is an orthogonal (right-angle) step
+ * path so a flow reads like a flowchart, not a nest of curves.
+ * - The primary edge of a node pair runs straight between the main handles.
+ * - Reciprocal / repeated / back edges leave via a side handle (chosen in
+ *   `toReactFlow` / `useFmlChart`) and are stood off from the node by a growing
+ *   `offset`, so each runs in its own vertical gutter around the stack instead
+ *   of one big curve bellying across the whole diagram.
  */
 export function FlowEdge({
   id,
@@ -40,45 +30,26 @@ export function FlowEdge({
 }: EdgeProps) {
   const index = Number(data?.parallelIndex ?? 0);
   // A back edge (target in an earlier rank) is re-routed onto one side by
-  // `useFmlChart` and marked here, so it gets the same wide arc as a parallel
-  // edge instead of a bezier that would cut back through the node stack.
+  // `useFmlChart` and marked here, so it takes the gutter route rather than a
+  // straight path that would cut back up through the node stack.
   const routed = typeof data?.routed === "string";
 
-  let path: string;
-  let labelX: number;
-  let labelY: number;
+  // `offset` = how far the path stands off the node before it turns. The
+  // primary edge hugs the handle (small offset); side-routed edges push out
+  // into a gutter, further per tier so parallels don't stack on one line.
+  const tier = index > 0 ? Math.floor((index - 1) / 2) : 0;
+  const offset = index === 0 && !routed ? 10 : routed ? 30 : 24 + tier * 18;
 
-  if (index === 0 && !routed) {
-    [path, labelX, labelY] = getSmoothStepPath({
-      sourceX,
-      sourceY,
-      sourcePosition,
-      targetX,
-      targetY,
-      targetPosition,
-      borderRadius: 8,
-    });
-    // Nudge the primary label off the mid-segment toward the source, so it
-    // clears the bowed label of any side-routed return edge on the same pair.
-    labelX += (sourceX - targetX) * 0.1;
-    labelY += (sourceY - targetY) * 0.1;
-  } else {
-    // Same-side handles: bow outward by a fixed amount (getBezierPath collapses
-    // to a near-straight line when the handles are vertically colinear).
-    const tier = index > 0 ? Math.floor((index - 1) / 2) : 0; // 0 for idx 1/2…
-    const span = Math.hypot(targetX - sourceX, targetY - sourceY);
-    const bow = routed
-      ? 74 + Math.min(span * 0.08, 64) // scale a back edge's bow with its reach
-      : SIDE_BOW + tier * 46;
-    const d = awayFrom(sourcePosition);
-    const c1x = sourceX + d.x * bow;
-    const c1y = sourceY + d.y * bow;
-    const c2x = targetX + d.x * bow;
-    const c2y = targetY + d.y * bow;
-    path = `M ${sourceX},${sourceY} C ${c1x},${c1y} ${c2x},${c2y} ${targetX},${targetY}`;
-    labelX = (sourceX + targetX) / 2 + d.x * bow * 0.82;
-    labelY = (sourceY + targetY) / 2 + d.y * bow * 0.82;
-  }
+  const [path, labelX, labelY] = getSmoothStepPath({
+    sourceX,
+    sourceY,
+    sourcePosition,
+    targetX,
+    targetY,
+    targetPosition,
+    borderRadius: 8,
+    offset,
+  });
 
   return (
     <>
