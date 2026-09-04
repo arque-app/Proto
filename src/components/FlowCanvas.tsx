@@ -12,6 +12,7 @@ import {
 } from "@xyflow/react";
 import { FmlNode } from "./nodes/FmlNode.tsx";
 import { FlowEdge } from "./edges/FlowEdge.tsx";
+import { savePositions } from "../lib/nodePositions.ts";
 import type { FmlFlowNode, FmlNodeData } from "../types/chart.ts";
 import type { Selection } from "./PropertyPanel.tsx";
 
@@ -49,6 +50,8 @@ interface Props {
   /** Node id whose neighbourhood is spotlighted (via its step badge), or null. */
   trace: string | null;
   onTrace: (id: string | null) => void;
+  /** Identifies the active doc for `nodePositions`, so a drag saves under the right key. */
+  posDocKey: string;
   /** Keeps `fitView` from tucking nodes under the toolbar or side panels. */
   padding: FitPadding;
 }
@@ -61,6 +64,7 @@ export function FlowCanvas({
   onOpenDoc,
   trace,
   onTrace,
+  posDocKey,
   padding,
 }: Props) {
   const { fitView } = useReactFlow();
@@ -182,6 +186,15 @@ export function FlowCanvas({
         onPaneClick={() => {
           onSelect(null);
           onTrace(null);
+        }}
+        onNodeDragStop={(_, node, draggedNodes) => {
+          // Positions never go into the .fml — save the drop point outside it,
+          // right away, so it survives a doc switch instead of resetting to
+          // auto-layout. Covers a multi-node drag too.
+          const moved = draggedNodes && draggedNodes.length > 0 ? draggedNodes : [node];
+          const positions: Record<string, { x: number; y: number }> = {};
+          for (const n of moved) positions[n.id] = n.position;
+          savePositions(posDocKey, positions);
         }}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}

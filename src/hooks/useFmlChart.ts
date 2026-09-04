@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { analyze, parse, type FmlDoc, type FmlIssue, type FmlStats } from "../fml/index.ts";
 import { layout } from "../lib/layout.ts";
+import { docPositionKey, getPositions } from "../lib/nodePositions.ts";
 import { toReactFlow } from "../lib/toReactFlow.ts";
 import type { FmlFlowNode, LayoutDirection } from "../types/chart.ts";
 import { makeResolver, type Workspace } from "../types/workspace.ts";
@@ -16,6 +17,8 @@ export interface FmlChart {
   docs: string[];
   /** The doc currently laid out (falls back to the first if `activeDoc` is stale). */
   activeDoc: string;
+  /** Identifies this doc for `nodePositions` — pass to `savePositions` on drag. */
+  posDocKey: string;
   errors: FmlIssue[];
   warnings: FmlIssue[];
   ok: boolean;
@@ -107,13 +110,24 @@ export function useFmlChart(
     const doc = res.file.docs.find((d) => d.name === activeDoc) ?? res.file.docs[0]!;
     const { nodes, edges } = toReactFlow(doc, dir);
     const laid = layout(nodes, edges, dir);
+
+    // Auto-layout runs fresh on every parse — positions never live in the
+    // .fml text. A node you've dragged keeps its spot across a doc switch by
+    // being saved separately (nodePositions.ts) and reapplied here.
+    const posDocKey = docPositionKey(workspace.entry, doc);
+    const saved = getPositions(posDocKey);
+    const positioned = Object.keys(saved).length
+      ? laid.map((n) => (saved[n.id] ? { ...n, position: saved[n.id]! } : n))
+      : laid;
+
     return {
-      nodes: laid,
-      edges: fanEdges(routeBackEdges(edges, laid, dir)),
+      nodes: positioned,
+      edges: fanEdges(routeBackEdges(edges, positioned, dir)),
       stats: analyze(doc),
       doc,
       docs: res.file.docs.map((d) => d.name),
       activeDoc: doc.name,
+      posDocKey,
       errors: res.errors,
       warnings: res.warnings,
       ok: res.ok,

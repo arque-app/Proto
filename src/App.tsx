@@ -243,6 +243,7 @@ export function App() {
             onOpenDoc={openDoc}
             trace={trace}
             onTrace={setTrace}
+            posDocKey={chart.posDocKey}
             padding={padding}
           />
           <Toolbar
