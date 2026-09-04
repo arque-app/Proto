@@ -6,7 +6,7 @@ app parses it, lays it out, and lets you edit node/edge properties straight back
 into the source file.
 
 **Deploy target:** protoarch.web.app via Firebase Hosting (project `protoarch`, serves `dist/`)
-**Repo:** github.com/joabeliot/protoarch
+**Repo:** github.com/joabeliot/ProtoArch
 
 > The north star is **executable flows**: run an API journey from the diagram as
 > a test — variables, captured values, status assertions. Not built yet; see

@@ -2,7 +2,7 @@
 
 **Focus:** FML — `.fml` Flowchart Markup Language: parser (`src/fml/`) + web viewer (React Flow + dagre)
 **Phase:** R&D — language standardised (5 node types), viewer redesigned; live at https://protoarch.web.app
-**Open:** node rename + add/delete node/edge (structural — needs an FmlDoc→text serializer); breadcrumb for portal drill-down (the jump itself works); "Open folder" (File System Access API); **JB has two logo concepts now — F\*ML (dev-facing mark) and protoArch (product wordmark) — waiting on final assets (vector/font or PNG) before either goes in the app**; sidebar resize; label crowding on primary+reciprocal at one node; `#` in a value is still eaten by the comment lexer (JB's call); `public/index.html` is dead Firebase boilerplate; repo moved to `github.com/joabeliot/protoarch` (org repo `arque-app/ProtoArch` retired; git remote + `CLAUDE.md` updated)
+**Open:** node rename + add/delete node/edge (structural — needs an FmlDoc→text serializer); breadcrumb for portal drill-down (the jump itself works); "Open folder" (File System Access API); **JB has two logo concepts now — F\*ML (dev-facing mark) and protoArch (product wordmark) — waiting on final assets (vector/font or PNG) before either goes in the app**; sidebar resize; label crowding on primary+reciprocal at one node; `#` in a value is still eaten by the comment lexer (JB's call); `public/index.html` is dead Firebase boilerplate; repo moved to `github.com/joabeliot/ProtoArch` (org repo `arque-app/ProtoArch` retired; git remote + `CLAUDE.md` updated)
 **Next:** graph-relaxation layout pass; then Variables (`{name}` interpolation, `@env`, `capture` resolution) toward executable flows
 
 ---
@@ -137,7 +137,7 @@ wiring either into the sidebar — Tailwind here can only pull webfonts from
 Google Fonts, so a custom/paid face means PNG, not a font swap.
 (12) Repo moved (git remote updated, not deployed — no code change): JB
 transferred the GitHub repo from `arque-app/ProtoArch` to
-`github.com/joabeliot/protoarch` (personal account). History intact — fetch
+`github.com/joabeliot/ProtoArch` (personal account). History intact — fetch
 confirmed `origin/main` matches local HEAD after the remote switch. Updated
 `CLAUDE.md`'s Repo line; this file's header above.
 Still open: long rank-skipping edges get a lonely lane; big graphs sprawl wide;
