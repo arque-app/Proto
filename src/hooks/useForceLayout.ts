@@ -16,7 +16,7 @@ interface SimNode {
 }
 
 /** Minimum gap kept between two cards, beyond their own footprint. */
-const PADDING = 16;
+const PADDING = 8;
 
 /** Circular collision radius from a rectangular card — conservative (never
  *  under-estimates), so two cards can never actually overlap. */
