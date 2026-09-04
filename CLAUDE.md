@@ -1,4 +1,4 @@
-# protoArch — CLAUDE.md
+# F*ML — CLAUDE.md
 
 **FML — a Flowchart Markup Language for app flows**, plus the web viewer/editor
 that draws it. You write `.fml` (navigation + API journeys as plain text); the
@@ -6,7 +6,7 @@ app parses it, lays it out, and lets you edit node/edge properties straight back
 into the source file.
 
 **Deploy target:** protoarch.web.app via Firebase Hosting (project `protoarch`, serves `dist/`)
-**Repo:** github.com/joabeliot/ProtoArch
+**Repo:** github.com/joabeliot/FML
 
 > The north star is **executable flows**: run an API journey from the diagram as
 > a test — variables, captured values, status assertions. Not built yet; see

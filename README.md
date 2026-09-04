@@ -1,7 +1,7 @@
-# protoArch
+# F*ML
 
 **FML — a Flowchart Markup Language for app flows.** Write your navigation and
-API journeys as plain text; protoArch draws them, checks them, and (soon) runs
+API journeys as plain text; F\*ML draws them, checks them, and (soon) runs
 them.
 
 Live at **[protoarch.web.app](https://protoarch.web.app)**.
@@ -37,7 +37,7 @@ one file can hold the whole app. The diagram is a *view* of the source, not the
 artifact.
 
 The north star is **executable flows** — pick an API journey, hit Run, and
-protoArch fires the requests in order, threads captured values between them and
+F\*ML fires the requests in order, threads captured values between them and
 asserts the responses. The diagram becomes the test. See
 [`lore/ideas/flow-execution.md`](lore/ideas/flow-execution.md).
 

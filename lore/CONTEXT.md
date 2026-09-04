@@ -1,8 +1,8 @@
-# Context — protoarque
+# Context — F*ML
 
 **Focus:** FML — `.fml` Flowchart Markup Language: parser (`src/fml/`) + web viewer (React Flow + dagre)
 **Phase:** R&D — language standardised (5 node types), viewer redesigned; live at https://protoarch.web.app
-**Open:** node rename + add/delete node/edge (structural — needs an FmlDoc→text serializer); breadcrumb for portal drill-down (the jump itself works); "Open folder" (File System Access API); **JB has two logo concepts now — F\*ML (dev-facing mark) and protoArch (product wordmark) — waiting on final assets (vector/font or PNG) before either goes in the app**; sidebar resize; label crowding on primary+reciprocal at one node; `#` in a value is still eaten by the comment lexer (JB's call); `public/index.html` is dead Firebase boilerplate; repo moved to `github.com/joabeliot/ProtoArch` (org repo `arque-app/ProtoArch` retired; git remote + `CLAUDE.md` updated)
+**Open:** node rename + add/delete node/edge (structural — needs an FmlDoc→text serializer); breadcrumb for portal drill-down (the jump itself works); "Open folder" (File System Access API); sidebar resize; label crowding on primary+reciprocal at one node; `#` in a value is still eaten by the comment lexer (JB's call); `public/index.html` is dead Firebase boilerplate; repo moved to `github.com/joabeliot/FML` (git remote + `CLAUDE.md` updated); a handful of `lore/` reference docs (`GUARDRAILS.md`, `INDEX.md`, `architecture/*.md`, `ideas/*.md`, `testing/registry.md`) still say "protoArch" here and there — not yet swept, low-stakes
 **Next:** graph-relaxation layout pass; then Variables (`{name}` interpolation, `@env`, `capture` resolution) toward executable flows
 
 ---
@@ -152,9 +152,31 @@ palette so the meaning is stable regardless of node type. Edge stroke +
 arrowhead colour by `traceView.edgeRole`; the PREV/NEXT tag on the node at the
 other end matches. Verified on a plain edge and a gutter-routed back edge —
 both colour correctly.
+(15) **The FML/protoArch split is reversed — the product is now F\*ML, full
+stop.** JB: "am going to change it to be FML no protoarch... fml just sounds
+good." The two-name split from earlier this session ([[protoarch-vs-fml-naming]]
+memory) is stale — record superseded. Repo moved again:
+`github.com/joabeliot/ProtoArch` → `github.com/joabeliot/FML` (git remote
+updated, verified). JB scoped the rename to **docs + in-app text only**, keeping
+the live deploy at protoarch.web.app / Firebase project `protoarch` for now
+(explicit choice — a domain/Firebase-project move is a separate, bigger
+decision). Renamed: `CLAUDE.md` title + Repo line, `README.md` title + the two
+"protoArch fires/draws" mentions, `index.html` `<title>`, `package.json` name
+(`protoarque` → `fml`, `package-lock.json` synced), the sidebar wordmark
+(`Sidebar.tsx`) — dropped the now-redundant small "fml" mono tag next to it
+since the wordmark itself says the name. Left as-is (internal, not
+user-visible): the `protoarque_fml_*` localStorage key names in `App.tsx` /
+`nodePositions.ts` — renaming would silently drop existing users' saved
+workspace/positions for no visible benefit. Left as-is (JB's explicit scope —
+deploy target unchanged): the `protoarch.web.app` / Firebase project
+`protoarch` mentions in `CLAUDE.md` and `README.md`'s Deploy section — those
+are accurate infra facts, not brand prose. Not swept: several `lore/` reference
+docs still say "protoArch" in passing (see Open, above) — flagged, not done
+silently.
 Still open: long rank-skipping edges get a lonely lane; big graphs sprawl wide;
 badge is a 20px target (small); trace + selection are independent; trace is
-one-hop only (full up/down-stream chain would be a small change).
+one-hop only (full up/down-stream chain would be a small change); the `lore/`
+reference-doc sweep above.
 Loaded: CLAUDE.md, GUARDRAILS.md, CONTEXT.md
 
 ### 2026-09-04 — JB / Claude — node standard + full design pass  (branch `polish/design-and-node-standard`)

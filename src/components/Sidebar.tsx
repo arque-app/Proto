@@ -101,11 +101,10 @@ export function Sidebar({
           className="text-[15px] text-ink"
           style={{ fontFamily: "var(--font-brand)", fontWeight: 400 }}
         >
-          protoArch
+          F*ML
         </span>
-        <span className="ml-auto font-mono text-[10px] text-ink-mute">fml</span>
         <button
-          className="rounded px-1 text-[12px] leading-none text-ink-mute transition-colors hover:bg-white/10 hover:text-ink"
+          className="ml-auto rounded px-1 text-[12px] leading-none text-ink-mute transition-colors hover:bg-white/10 hover:text-ink"
           onClick={onCollapse}
           title="Hide sidebar (⌘\)"
         >
