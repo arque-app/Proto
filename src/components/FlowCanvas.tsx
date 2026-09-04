@@ -196,7 +196,7 @@ export function FlowCanvas({
         className="bg-bg"
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={2} color="#3d3d3d" />
-        <Controls showInteractive={false} position="bottom-left" />
+        <Controls showInteractive={false} position="bottom-right" />
       </ReactFlow>
 
       {chartNodes.length === 0 && <EmptyCanvas />}

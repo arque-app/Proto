@@ -6,8 +6,10 @@ interface Props {
   id: string;
   title: ReactNode;
   side: "left" | "right";
-  /** Extra px to inset from that side (docked right panels, zoom controls). */
+  /** Extra px to inset from that side (docked right panels). */
   inset?: number;
+  /** Px to lift off the bottom edge, e.g. to clear the zoom controls. */
+  raise?: number;
   defaultOpen?: boolean;
   children: ReactNode;
 }
@@ -17,15 +19,26 @@ interface Props {
  * The title bar is always shown; clicking it collapses the body so the panel
  * shrinks to just that bar at the bottom edge. Collapsed state persists.
  */
-export function DockPanel({ id, title, side, inset = 0, defaultOpen = true, children }: Props) {
+export function DockPanel({
+  id,
+  title,
+  side,
+  inset = 0,
+  raise = 0,
+  defaultOpen = true,
+  children,
+}: Props) {
   const [open, setOpen] = useLocalStorage(`protoarque_dock_${id}`, defaultOpen);
 
   return (
     <div
-      className={`absolute bottom-3 z-10 overflow-hidden rounded-xl border border-line bg-surface/95 backdrop-blur-md ${
+      className={`absolute z-10 overflow-hidden rounded-xl border border-line bg-surface/95 backdrop-blur-md ${
         open ? "w-[min(360px,calc(50%-1rem))]" : "w-auto max-w-[min(360px,calc(50%-1rem))]"
       }`}
-      style={side === "left" ? { left: 12 + inset } : { right: 12 + inset }}
+      style={{
+        bottom: 12 + raise,
+        ...(side === "left" ? { left: 12 + inset } : { right: 12 + inset }),
+      }}
     >
       <button
         onClick={() => setOpen((o) => !o)}

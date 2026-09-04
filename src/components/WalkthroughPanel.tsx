@@ -54,6 +54,8 @@ export function WalkthroughPanel({
       id="walkthrough"
       side="right"
       inset={inset}
+      // Sit above the zoom controls, which share the bottom-right corner.
+      raise={96}
       title={`Walkthrough · ${steps.length} step${steps.length === 1 ? "" : "s"}`}
     >
       <div className="flex flex-col gap-1.5 px-1">

@@ -12,7 +12,6 @@ import { useLocalStorage } from "./hooks/useLocalStorage.ts";
 import { SAMPLE_FML } from "./lib/sample.ts";
 import { setEdgeLabel, setEdgeNote, setNodeBlock, setNodeType } from "./lib/fmlEdit.ts";
 import { fileKey, type Workspace } from "./types/workspace.ts";
-import type { LayoutDirection } from "./types/chart.ts";
 
 const WS_KEY = "protoarque_fml_ws";
 
@@ -46,16 +45,15 @@ function pickEntry(files: Record<string, string>, current: string): string {
 
 export function App() {
   const [ws, setWs] = useLocalStorage<Workspace>(WS_KEY, initialWorkspace());
-  const [dir, setDir] = useLocalStorage<LayoutDirection>("protoarque_fml_dir", "TB");
   const [sidebarOpen, setSidebarOpen] = useLocalStorage("protoarque_fml_sidebar", true);
-  const [strict, setStrict] = useState(false);
   const [sourceOpen, setSourceOpen] = useState(false);
   const [activeDoc, setActiveDoc] = useState<string | null>(null);
   const [sel, setSel] = useState<Selection | null>(null);
   // Node id whose neighbourhood is spotlighted, set by clicking a step badge.
   const [trace, setTrace] = useState<string | null>(null);
 
-  const chart = useFmlChart(ws, activeDoc, dir, strict);
+  // Layout is always top-down; strict validation stays off (loose mode).
+  const chart = useFmlChart(ws, activeDoc, "TB", false);
 
   // A trace id is doc-local; drop it whenever the doc or file changes.
   useEffect(() => setTrace(null), [chart.activeDoc, ws.entry]);
@@ -234,11 +232,6 @@ export function App() {
             padding={padding}
           />
           <Toolbar
-            stats={chart.stats}
-            dir={dir}
-            onDir={setDir}
-            strict={strict}
-            onStrict={setStrict}
             sourceOpen={sourceOpen}
             onToggleSource={() => setSourceOpen((v) => !v)}
             onAddFiles={addFiles}
@@ -247,7 +240,6 @@ export function App() {
             onReset={reset}
             sidebarOpen={sidebarOpen}
             onToggleSidebar={() => setSidebarOpen(true)}
-            padding={padding}
             errors={chart.errors}
             warnings={chart.warnings}
           />

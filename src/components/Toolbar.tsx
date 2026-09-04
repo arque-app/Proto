@@ -1,16 +1,8 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { useReactFlow } from "@xyflow/react";
-import type { FmlIssue, FmlStats } from "../fml/index.ts";
+import type { FmlIssue } from "../fml/index.ts";
 import { fileKey } from "../types/workspace.ts";
-import type { LayoutDirection } from "../types/chart.ts";
-import type { FitPadding } from "./FlowCanvas.tsx";
 
 interface Props {
-  stats: FmlStats;
-  dir: LayoutDirection;
-  onDir: (d: LayoutDirection) => void;
-  strict: boolean;
-  onStrict: (v: boolean) => void;
   sourceOpen: boolean;
   onToggleSource: () => void;
   onAddFiles: (files: Record<string, string>) => void;
@@ -20,8 +12,6 @@ interface Props {
   onReset: () => void;
   sidebarOpen: boolean;
   onToggleSidebar: () => void;
-  /** Shared with the canvas so "Fit" clears the chrome too. */
-  padding: FitPadding;
   errors: FmlIssue[];
   warnings: FmlIssue[];
 }
@@ -33,7 +23,6 @@ const on = "bg-ink text-bg";
 const sep = "mx-0.5 h-4 w-px bg-line";
 
 export function Toolbar(props: Props) {
-  const { fitView } = useReactFlow();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const { errors, warnings } = props;
@@ -114,39 +103,6 @@ export function Toolbar(props: Props) {
 
       <span className={sep} />
 
-      <span className="px-1.5 font-mono text-[11px] text-ink-mute">
-        <span className="text-ink-dim">{props.stats.flowCount}</span> flow
-        {props.stats.flowCount === 1 ? "" : "s"}
-        <span className="mx-1 text-line-strong">·</span>
-        <span className="text-ink-dim">{props.stats.nodes}</span>n
-        <span className="mx-1 text-line-strong">·</span>
-        <span className="text-ink-dim">{props.stats.edges}</span>e
-      </span>
-
-      <span className={sep} />
-
-      <button className={`${btn} ${props.dir === "TB" ? on : idle}`} onClick={() => props.onDir("TB")}>
-        ↓&nbsp;TB
-      </button>
-      <button className={`${btn} ${props.dir === "LR" ? on : idle}`} onClick={() => props.onDir("LR")}>
-        →&nbsp;LR
-      </button>
-      <button
-        className={`${btn} ${props.strict ? on : idle}`}
-        onClick={() => props.onStrict(!props.strict)}
-        title="Undeclared nodes and off-standard types become errors; expected keys are checked"
-      >
-        strict
-      </button>
-
-      <span className={sep} />
-
-      <button
-        className={`${btn} ${idle}`}
-        onClick={() => void fitView({ padding: props.padding, duration: 200 })}
-      >
-        Fit
-      </button>
       <button className={`${btn} ${props.sourceOpen ? on : idle}`} onClick={props.onToggleSource}>
         Source
       </button>
