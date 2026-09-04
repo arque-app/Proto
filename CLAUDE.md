@@ -29,6 +29,7 @@ into the source file.
 |---|---|
 | `src/fml/` | The language. Parser, node-type standard, stats. **Zero dependencies** — keep it that way, it has to run in Node and the browser. |
 | `src/fml/nodeTypes.ts` | The canonical node vocabulary (`page`/`api`/`decision`/`event`/`flow`) and their expected keys. Changing it changes the language. |
+| `src/fml/variables.ts` | `{name}` resolution — `@vars` defaults + `capture.<name>` on an earlier node in the same doc. Per-doc scope; cross-doc (through a `flow` portal) is an open question, not decided. |
 | `src/lib/fmlEdit.ts` | Write-back: targeted text surgery into one `@doc`'s span. Never re-serialises the whole file — comments and formatting must survive. |
 | `src/lib/` | layout (dagre), toReactFlow, node styling |
 | `src/components/` | canvas, sidebar, toolbar, property panel, source editor |

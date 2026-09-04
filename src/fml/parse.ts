@@ -6,6 +6,7 @@
 //   file      := doc*
 //   doc       := "@doc" NAME NL section*        # NAME optional overall — no @doc ⇒ one "main" doc
 //   section   := "@meta" NL kv*
+//              | "@vars" NL kv*                    # defaults for {name} interpolation
 //              | "@nodes" NL decl*
 //              | "@node" ID "{" NL kv* "}"
 //              | "@flow" NL flowline*
@@ -44,7 +45,7 @@ interface Line {
   text: string;
 }
 
-type SectionKind = "meta" | "nodes" | "node" | "flow";
+type SectionKind = "meta" | "vars" | "nodes" | "node" | "flow";
 
 interface Section {
   kind: SectionKind;
@@ -59,7 +60,7 @@ const RE = {
   // @fof <path> [as <name>] — path has no extension (it's always .fml).
   fofHeader: /^@fof\s+(\S.*?)(?:\s+as\s+([A-Za-z0-9_]+))?\s*$/,
   nodeHeader: /^@node\s+([A-Za-z0-9_]+)\s*\{$/,
-  section: /^@(meta|nodes|flow)$/,
+  section: /^@(meta|vars|nodes|flow)$/,
   decl: /^([A-Za-z0-9_]+)\s*=\s*([A-Za-z0-9_]+)$/,
   // `.` is allowed so repeatable execution keys work: `header.Authorization`,
   // `query.page`, `capture.token`.
@@ -311,6 +312,7 @@ function parseDoc(
   const sections = sectionize(lines, errors);
 
   const meta: Record<string, string> = {};
+  const vars: Record<string, string> = {};
   const table = new Map<string, FmlNode>();
   const edges: FmlEdge[] = [];
   const pairCount = new Map<string, number>();
@@ -339,9 +341,10 @@ function parseDoc(
     return edge;
   };
 
-  // Pass 1: @meta
+  // Pass 1: @meta, @vars
   for (const s of sections) {
     if (s.kind === "meta") Object.assign(meta, parseKv(s.body, errors));
+    if (s.kind === "vars") Object.assign(vars, parseKv(s.body, errors));
   }
 
   // Pass 2: @nodes (roster)
@@ -449,7 +452,7 @@ function parseDoc(
     }
   }
 
-  return { name, meta, nodes: [...table.values()], edges };
+  return { name, meta, vars, nodes: [...table.values()], edges };
 }
 
 const MAX_FOF_DEPTH = 16;
@@ -559,7 +562,7 @@ export function parse(src: string, opts: ParseOptions = {}): ParseResult {
   };
 
   const docs = resolveFile(src, undefined, ctx);
-  if (docs.length === 0) docs.push({ name: "main", meta: {}, nodes: [], edges: [] });
+  if (docs.length === 0) docs.push({ name: "main", meta: {}, vars: {}, nodes: [], edges: [] });
   dedupeNames(docs, warnings);
 
   return {

@@ -550,5 +550,33 @@ const resolve = (p: string): string | undefined => FILES[p.split("/").pop()!.rep
   eq("dotted capture key", r.doc.nodes[0]!.data["capture.token"], "$.data.token");
 }
 
+// 36. @vars parses like @meta — a plain kv section
+{
+  const r = parse(
+    `@vars\n  email: test@example.com\n  base_currency: USD\n@nodes\n  A = page\n`,
+    { strict: false },
+  );
+  eq("vars parsed", r.doc.vars, { email: "test@example.com", base_currency: "USD" });
+  ok("no warnings", r.warnings.length === 0, JSON.stringify(r.warnings));
+}
+
+// 37. each @doc gets its own @vars, same as @meta
+{
+  const r = parse(
+    `@doc a\n@vars\n  x: 1\n@nodes\n  P = page\n\n@doc b\n@vars\n  x: 2\n@nodes\n  Q = page\n`,
+    { strict: false },
+  );
+  const a = r.file.docs.find((d) => d.name === "a")!;
+  const b = r.file.docs.find((d) => d.name === "b")!;
+  eq("doc a vars", a.vars, { x: "1" });
+  eq("doc b vars", b.vars, { x: "2" });
+}
+
+// 38. a doc with no @vars section gets an empty object, not undefined
+{
+  const r = parse(`@nodes\n  A = page\n`, { strict: false });
+  eq("empty vars", r.doc.vars, {});
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

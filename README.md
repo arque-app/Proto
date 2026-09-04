@@ -48,6 +48,7 @@ Full reference: **[HOW-TO.md](HOW-TO.md)**.
 | Section | Purpose |
 |---|---|
 | `@meta` | title, version, `base:` URL |
+| `@vars` | default values for `{name}` interpolation |
 | `@nodes` | the roster — `<id> = <type>` |
 | `@node <id> { }` | metadata for one node |
 | `@flow` | the arrows, inline or grouped |

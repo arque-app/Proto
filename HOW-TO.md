@@ -27,6 +27,7 @@ A file is a list of **sections**. Each section header sits at column 0 and start
 | Section | Purpose | Required |
 |---|---|---|
 | `@meta` | file-level info: `title`, `base` (the API root) | no |
+| `@vars` | default values for `{name}` interpolation | no |
 | `@nodes` | declare every box | yes (in practice) |
 | `@node <id> { … }` | attach details to one box; repeatable | no |
 | `@flow` | the arrows | yes |
@@ -65,6 +66,24 @@ LoginScreen = page   # also a comment (after whitespace)
 - Any other key is allowed and carried through untouched; nothing else is
   interpreted today.
 - With multiple `@doc`s, each doc has its own `@meta`.
+
+---
+
+## `@vars` — variable defaults
+
+```
+@vars
+  email: demo@example.com
+```
+
+- `key: value`, indented, one per line — same shape as `@meta`.
+- Gives `{name}` (see below) a default so the file runs standalone, no setup.
+- **Don't put secrets here.** A variable referenced but never declared in
+  `@vars` — and never `capture`d by an earlier node either — is a run-time
+  input: nothing resolves it today, and once the runner exists it'll be
+  prompted for instead of read from the file. That's the point — a password
+  or token should never sit in something you'd commit.
+- With multiple `@doc`s, each doc has its own `@vars`.
 
 ---
 
@@ -202,8 +221,32 @@ without a rewrite:
   value out of one response (JSONPath) so a later node can spend it as `{token}`.
 - `expect:` is the status the runner will assert — `200`, or `200,201`.
 
-Today these are ordinary metadata keys: they render on the box and nothing
-validates their contents. Write them anyway.
+No network call happens yet — there's no runner (see
+`lore/ideas/flow-execution.md`). But `{name}` *is* resolved today: click a node
+and its **About** tab lists every variable it references and where the value
+comes from. See below.
+
+### Variables — `{name}`
+
+A `{name}` anywhere in a node's data — `path`, `body`, a `header.*`, anything —
+is a reference, resolved one of two ways:
+
+- **`@vars` declares a default.** `email: demo@example.com` in `@vars` means
+  every `{email}` resolves to that string, right now, no run required.
+- **An earlier node's `capture.<name>` produces it.** `capture.token:
+  $.data.token` on `authLogin` means `{token}` resolves to "captured by
+  authLogin" — the actual value only exists once that request has really run.
+
+A `{name}` that's neither declared nor captured is a **run-time input** — it
+resolves to nothing today. That's deliberate for secrets: `{password}` with no
+`@vars` entry stays unset, so nothing sensitive sits in a file you'd commit.
+Once the runner exists, an unresolved variable is what it'll prompt you for.
+
+Variable scope is **per-doc** today — a `capture` in one `@doc`/`@fof` file
+doesn't resolve a `{name}` used in another, even across a `flow` portal that's
+obviously the same journey continuing. That's a real gap, not yet decided: does
+one *run* span multiple docs through their portals, carrying captured values
+across? Undecided — flagged in `lore/ideas/flow-execution.md`.
 
 ---
 
@@ -491,7 +534,7 @@ per journey, assembled at the top of the entry file:
 | `@node X block is missing a closing "}"` | add the `}` |
 | `unrecognised flow line: "…"` | the line isn't a valid arrow or `id:` header |
 | `edge note block for "X -> Y" is missing a closing "}"` | add the `}` for that edge's `{ … }` block |
-| `unknown directive: "@…"` | only `@meta`, `@nodes`, `@node`, `@flow`, `@doc`, `@fof` are valid |
+| `unknown directive: "@…"` | only `@meta`, `@vars`, `@nodes`, `@node`, `@flow`, `@doc`, `@fof` are valid |
 | `unknown node type "X" for "Y"` | use one of the five standard types, or accept the warning |
 | `api "X" is missing "method", "path"` | strict-mode hint — add the keys, or turn strict off while sketching |
 | `@doc needs a name matching [A-Za-z0-9_]` | `@doc My Flow` → `@doc myFlow` |
@@ -552,6 +595,9 @@ What the viewer gives you beyond the picture:
   immediate `prev` / `next` neighbours and dim the rest.
 - A node's **Code** tab shows its literal FML — the `@nodes` line plus its
   `@node { }` block — editable, with copy / apply / revert.
+- A node's **About** tab lists every `{name}` it references and how it
+  resolves — an `@vars` default, "captured by `<node>`", or "not set, asked
+  for when run".
 - **Drag a node** to hand-place it. The position is saved outside the `.fml`
   (never written into the file — layout stays automatic) and survives
   switching docs and back; auto-layout still runs for everything you haven't
@@ -579,3 +625,5 @@ What the viewer gives you beyond the picture:
 - [ ] Every `flow` node has a `doc:` matching a `@doc` or `@fof` name
 - [ ] No arrow crosses between `@doc`s — a `flow` portal does that instead
 - [ ] Every `@fof` line has `as <name>` and a path with no extension
+- [ ] Every `{name}` either has an `@vars` default, is `capture`d by an earlier
+      node in the *same* doc, or is meant to stay unset (a secret)

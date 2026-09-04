@@ -32,6 +32,13 @@ export interface FmlDoc {
   /** The `@fof` path this doc was pulled from; absent for the root file's own docs. */
   source?: string;
   meta: Record<string, string>;
+  /**
+   * `@vars` — default values for `{name}` interpolation. A variable used in a
+   * node's data but never declared here (and never `capture`d by an earlier
+   * node) is a run-time input: nothing to resolve yet, the future runner will
+   * have to ask for it. See `variables.ts`.
+   */
+  vars: Record<string, string>;
   nodes: FmlNode[];
   edges: FmlEdge[];
 }

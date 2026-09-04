@@ -1,13 +1,58 @@
 # Context — F*ML
 
 **Focus:** FML — `.fml` Flowchart Markup Language: parser (`src/fml/`) + web viewer (React Flow + dagre)
-**Phase:** R&D — language standardised (5 node types), viewer redesigned; live at https://protoarch.web.app
-**Open:** node rename + add/delete node/edge (structural — needs an FmlDoc→text serializer); breadcrumb for portal drill-down (the jump itself works); "Open folder" (File System Access API); sidebar resize; label crowding on primary+reciprocal at one node; `#` in a value is still eaten by the comment lexer (JB's call); `public/index.html` is dead Firebase boilerplate; repo moved to `github.com/joabeliot/FML` (git remote + `CLAUDE.md` updated); a handful of `lore/` reference docs (`GUARDRAILS.md`, `INDEX.md`, `architecture/*.md`, `ideas/*.md`, `testing/registry.md`) still say "protoArch" here and there — not yet swept, low-stakes
-**Next:** graph-relaxation layout pass; then Variables (`{name}` interpolation, `@env`, `capture` resolution) toward executable flows
+**Phase:** R&D — language standardised (5 node types) and now variable-aware (`@vars` + `capture` resolution); viewer redesigned; live at https://protoarch.web.app
+**Open:** **cross-doc variable scope is undecided** — a `capture` in one `@doc` doesn't resolve a `{name}` in a doc it portals into via `flow`, even though that's the same journey continuing (needed before the runner can thread a variable through a portal); node rename + add/delete node/edge (structural — needs an FmlDoc→text serializer); breadcrumb for portal drill-down (the jump itself works); "Open folder" (File System Access API); sidebar resize; label crowding on primary+reciprocal at one node; `#` in a value is still eaten by the comment lexer (JB's call); `public/index.html` is dead Firebase boilerplate; a handful of `lore/` reference docs (`GUARDRAILS.md`, `INDEX.md`, `architecture/*.md`, `ideas/*.md`, `testing/registry.md`) still say "protoArch" here and there — not yet swept, low-stakes
+**Next:** the runner (execution engine, needs a CORS/backend story) — blocked on the cross-doc variable question above; graph-relaxation layout pass is still open too
 
 ---
 
 ## Log
+
+### 2026-09-04 — JB / Claude (cont.) — Variables land: `@vars` + `capture` resolution
+JB: "we're gonna work on standardising some nodes coz we need to perform
+actions with those nodes... this brings me to another feature variables...
+we're evolving this tool." Checked first — node standardisation for `api`
+(`method`/`path` required, `header.*`/`query.*`/`capture.*`/`body`/`auth`/
+`expect` optional) already landed earlier today; this round is
+`lore/ideas/flow-execution.md`'s own step 2: variables.
+
+One blocking grammar decision, asked directly: where does a variable like
+`{email}` (not captured from a response — a flow input) get its value?
+JB: **"Both — @vars for defaults, secrets stay unset."**
+
+Shipped:
+- `FmlDoc.vars: Record<string,string>` — new `@vars` section, parses exactly
+  like `@meta` (`src/fml/parse.ts`, `types.ts`). Per-doc, like `@meta`.
+- New `src/fml/variables.ts`: `varsInValue`/`varsInNode` find every `{name}`
+  in a value/node; `resolveVariables(doc)` builds a name → source map from
+  `@vars` (wins on collision) + every node's `capture.<name>`;
+  `nodeVarUsage(node, resolved)` is the per-node view. 14 new tests
+  (`variables.test.ts`) + 5 parser tests for `@vars` itself. 162 total.
+- Property panel's **About** tab gets a **Variables** section: `{email} →
+  "demo@example.com"`, `{token} → captured by authLogin`, or `{password} →
+  not set, asked for when run` (warn-coloured). Verified all three states in
+  the browser.
+- Sample (`sample.ts`) got a real `@vars: email: ...` — `password` stays
+  undeclared on purpose, demonstrating the "secrets stay unset" call.
+- `HOW-TO.md`: new `@vars` section, file-shape table row, a full "Variables —
+  {name}" subsection under the exec-ready `api` keys, viewer-section bullet,
+  checklist row, error-table row. `README.md`'s language table too.
+  `lore/ideas/flow-execution.md` marked steps 1+2 done, step 3 (runner)
+  blocked on two things now named explicitly.
+No network call anywhere — deliberately. That's step 3 (runner), needs a
+CORS/backend story that hasn't been decided.
+**Real gap surfaced, not solved:** resolution is per-`@doc`. A `capture` in
+`main` doesn't satisfy a `{name}` used in a doc it portals into via `flow` —
+even though that's obviously one continuous journey. Checked live: checkout's
+`payApi` still shows `{token} → not set` despite `main`'s `authLogin`
+capturing it, because they're different docs. Whether one *run* should span
+docs through their portals (carrying captured values across) is a real,
+undecided design question — flagged in both `flow-execution.md` and here, not
+silently papered over.
+Not done (didn't expand scope without asking): the property-panel "fixed vs.
+freeform field" UI split floated as a possible reading of "standardising
+nodes" — mentioned to JB, not built; would be a separate small round.
 
 ### 2026-09-04 — JB / Claude (cont.) — HOW-TO multi-file docs + reviewed/deployed a second agent's feature
 Two small asks. (1) HOW-TO.md was missing the multi-file / multi-flow syntax —

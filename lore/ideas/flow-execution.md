@@ -1,6 +1,7 @@
 # Idea: executable FML flows + variables  (the north star)
 
-**Status:** vision captured, not scheduled. Node standardisation comes first.
+**Status:** step 1 (node standardisation) and step 2 (variables — parser +
+resolved-value view) are done. Step 3 (the runner) is not scheduled.
 **Raised by:** JB — "we'll need to add Variables… this is the whole dream for the
 tool. i'll execute this api flow in the platform so i can test the api flow."
 
@@ -14,7 +15,7 @@ the responses — a visual API test harness where the diagram *is* the test.
 
 For that, two things FML doesn't have yet:
 
-### 1. Variables
+### 1. Variables — DONE (2026-09-04, `src/fml/variables.ts`)
 
 A value produced by one step, used by a later one. The canonical case:
 
@@ -23,11 +24,22 @@ authLogin  →  200  →  capture token from the body
                       later requests send  Authorization: Bearer {token}
 ```
 
-Shape (candidate, not decided):
-- `{name}` interpolation inside any value string.
-- Seeded from: a base/env (`@meta base:` or an `@env` section), an `event` node's
-  payload, or a `capture` on an earlier `api` node.
-- `capture.token: $.data.token` — JSONPath into the response → variable `token`.
+Shape (decided — JB: "@vars for defaults, secrets stay unset"):
+- `{name}` interpolation inside any value string — implemented, resolved (not
+  executed) by `resolveVariables()` / `nodeVarUsage()`.
+- A new `@vars` section declares literal defaults, same shape as `@meta`.
+- `capture.token: $.data.token` on an earlier node also satisfies `{token}` —
+  its value isn't known until the request actually runs, but the property
+  panel's About tab shows *which node* will produce it.
+- A `{name}` that's neither `@vars`-declared nor `capture`d resolves to
+  nothing — that's the run-time-input / secret case, by design (a password
+  should never sit in a committed file). The future runner prompts for these.
+- **Open, not decided:** scope is per-`@doc` today. A `capture` in `main`
+  doesn't resolve a `{name}` referenced in a doc it portals into via `flow` —
+  even though that's obviously the same journey continuing. Does one *run*
+  span multiple docs through their portals, carrying captured values across?
+  Needs deciding before the runner (item 3) can thread a variable through a
+  `flow` node.
 
 ### 2. Execution-ready `api` nodes
 
@@ -51,14 +63,14 @@ An `event` node can seed the run's starting variables.
 
 ## Sequencing
 
-1. **Node standardisation** (`lore/ideas/`… this doc's sibling / the type vocab) —
-   NOW. Lock the type set + rendering + expected keys. Design the `api` key set
-   above into the standard even though nothing executes yet, so we don't repaint.
-2. Variables: `{…}` interpolation + `@env` + `capture` parsing. Parser +
-   a resolved-value view. No network yet.
+1. **Node standardisation** — DONE. Type set + rendering + expected keys
+   locked (`src/fml/nodeTypes.ts`); the `api` key set above is the standard.
+2. **Variables** — DONE. `{…}` interpolation + `@vars` + `capture` parsing,
+   resolved and shown in the property panel. No network yet.
 3. Runner: an execution engine that walks a flow, sends requests (needs a CORS
    story — proxy, or the platform backend JB mentioned), shows per-step
-   pass/fail on the canvas.
+   pass/fail on the canvas. Blocked on: the cross-doc variable scope question
+   above, and the CORS/backend decision.
 
 Related: [[fml-on-fml]] (a `flow` portal could be a reusable sub-sequence in a
 run), [[edge-notes]] (an edge could carry a `when:` guard for the runner).

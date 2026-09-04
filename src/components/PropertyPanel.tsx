@@ -5,9 +5,12 @@ import {
   isKnownType,
   missingKeys,
   nodeTypeSpec,
+  nodeVarUsage,
+  resolveVariables,
   type FmlDoc,
   type FmlEdge,
   type FmlNode,
+  type NodeVarUsage,
 } from "../fml/index.ts";
 import { kindColor } from "../lib/nodeStyle.ts";
 import { Glyph } from "./Glyph.tsx";
@@ -67,6 +70,10 @@ export function PropertyPanel({
     () => (node ? doc.edges.filter((e) => e.source === node.id) : []),
     [node, doc.edges],
   );
+  const varUsage = useMemo(
+    () => (node ? nodeVarUsage(node, resolveVariables(doc)) : []),
+    [node, doc],
+  );
 
   return (
     <div
@@ -109,7 +116,9 @@ export function PropertyPanel({
 
       <div className="flex-1 overflow-y-auto p-3">
         {node && tab === "props" && <NodeForm key={sel.id} node={node} onCommit={onCommitNode} />}
-        {node && tab === "about" && <AboutView node={node} inEdges={inEdges} outEdges={outEdges} />}
+        {node && tab === "about" && (
+          <AboutView node={node} inEdges={inEdges} outEdges={outEdges} varUsage={varUsage} />
+        )}
         {node && tab === "code" && (
           <CodeView
             key={sel.id}
@@ -137,10 +146,12 @@ function AboutView({
   node,
   inEdges,
   outEdges,
+  varUsage,
 }: {
   node: FmlNode;
   inEdges: FmlEdge[];
   outEdges: FmlEdge[];
+  varUsage: NodeVarUsage[];
 }) {
   const note = node.data.note;
   const spec = nodeTypeSpec(node.type);
@@ -191,6 +202,32 @@ function AboutView({
                   <span className="ml-2 font-mono text-[10px] text-ink-mute">{e.label} ↴</span>
                 )}
                 <span className="font-mono text-[11px] text-ink-dim">{e.target}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {varUsage.length > 0 && (
+        <div>
+          <div className={keyLabel}>variables</div>
+          <div className="mt-1.5 flex flex-col gap-1">
+            {varUsage.map((u) => (
+              <div key={u.name} className="flex items-baseline gap-1.5 font-mono text-[11px]">
+                <span className="shrink-0 text-ink-dim">{`{${u.name}}`}</span>
+                {u.resolved?.source === "vars" && (
+                  <span className="min-w-0 truncate text-ink-mute">
+                    → &quot;{u.resolved.value}&quot;
+                  </span>
+                )}
+                {u.resolved?.source === "capture" && (
+                  <span className="min-w-0 truncate text-ink-mute">
+                    → captured by {u.resolved.capturedBy}
+                  </span>
+                )}
+                {!u.resolved && (
+                  <span className="min-w-0 truncate text-warn">→ not set, asked for when run</span>
+                )}
               </div>
             ))}
           </div>

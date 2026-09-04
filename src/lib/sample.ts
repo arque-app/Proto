@@ -6,6 +6,13 @@ export const SAMPLE_FML = `# app.fml — the five node types, one map.
   title: Demo App
   base: https://api.example.com
 
+# @vars gives a variable a default so it's runnable as-is. A variable that's
+# referenced but never declared here (or captured by an earlier node) is a
+# run-time input instead — password stays unset on purpose, nobody wants a
+# real one committed to a file.
+@vars
+  email: demo@example.com
+
 @nodes
   Launch     = event
   HasSession = decision
