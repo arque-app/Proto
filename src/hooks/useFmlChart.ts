@@ -59,6 +59,37 @@ function routeBackEdges(edges: Edge[], laid: FmlFlowNode[], dir: LayoutDirection
 }
 
 /**
+ * Edges that share an exit point (same source + source handle) or an entry
+ * point (same target + target handle) get drawn on top of each other near the
+ * node, and their labels stack. Tag each with its index within that fan so the
+ * edge renderer can spread them along the node's side.
+ */
+function fanEdges(edges: Edge[]): Edge[] {
+  const outKey = (e: Edge) => `${e.source}|${e.sourceHandle ?? ""}`;
+  const inKey = (e: Edge) => `${e.target}|${e.targetHandle ?? ""}`;
+  const out = new Map<string, string[]>();
+  const inn = new Map<string, string[]>();
+  for (const e of edges) {
+    (out.get(outKey(e)) ?? out.set(outKey(e), []).get(outKey(e))!).push(e.id);
+    (inn.get(inKey(e)) ?? inn.set(inKey(e), []).get(inKey(e))!).push(e.id);
+  }
+  return edges.map((e) => {
+    const o = out.get(outKey(e))!;
+    const i = inn.get(inKey(e))!;
+    return {
+      ...e,
+      data: {
+        ...e.data,
+        outIndex: o.indexOf(e.id),
+        outCount: o.length,
+        inIndex: i.indexOf(e.id),
+        inCount: i.length,
+      },
+    };
+  });
+}
+
+/**
  * Parse the workspace entry file (resolving `@fof` against the other files),
  * then lay out whichever doc is active.
  * `strict: false` keeps rendering a half-typed file — undeclared refs become
@@ -78,7 +109,7 @@ export function useFmlChart(
     const laid = layout(nodes, edges, dir);
     return {
       nodes: laid,
-      edges: routeBackEdges(edges, laid, dir),
+      edges: fanEdges(routeBackEdges(edges, laid, dir)),
       stats: analyze(doc),
       doc,
       docs: res.file.docs.map((d) => d.name),
