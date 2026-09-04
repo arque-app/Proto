@@ -48,19 +48,26 @@ export function FlowEdge({
   // `useFmlChart` and marked here, so it takes the gutter route rather than a
   // straight path that would cut back up through the node stack.
   const routed = typeof data?.routed === "string";
+  // A node pointing at itself (`toReactFlow` routes it corner-to-corner
+  // instead of its own bottom→top, which would fold flat over the title).
+  const selfLoop = data?.selfLoop === true;
 
   // `offset` = how far the path stands off the node before it turns. The
   // primary edge hugs the handle (small offset); side-routed edges push out
-  // into a gutter, further per tier so parallels don't stack on one line.
+  // into a gutter, further per tier so parallels don't stack on one line. A
+  // self-loop needs the most — it has to clear its own card on the way back in.
   const tier = index > 0 ? Math.floor((index - 1) / 2) : 0;
-  const offset = index === 0 && !routed ? 10 : routed ? 30 : 24 + tier * 18;
+  const offset = selfLoop ? 40 : index === 0 && !routed ? 10 : routed ? 30 : 24 + tier * 18;
 
   // Spread this edge along its source/target side if it shares that point with
   // siblings. The shift is along the side (x for a top/bottom handle, y for a
   // left/right one), so the endpoint stays on the node's border. Gutter-routed
-  // back edges are already on their own line — don't shift them, it curls the path.
-  const outShift = routed ? 0 : fanShift(Number(data?.outIndex ?? 0), Number(data?.outCount ?? 1));
-  const inShift = routed ? 0 : fanShift(Number(data?.inIndex ?? 0), Number(data?.inCount ?? 1));
+  // back edges and self-loops are already on their own line — don't shift them,
+  // it curls the path.
+  const outShift =
+    routed || selfLoop ? 0 : fanShift(Number(data?.outIndex ?? 0), Number(data?.outCount ?? 1));
+  const inShift =
+    routed || selfLoop ? 0 : fanShift(Number(data?.inIndex ?? 0), Number(data?.inCount ?? 1));
   const sx = sourceX + (horiz(sourcePosition) ? outShift : 0);
   const sy = sourceY + (horiz(sourcePosition) ? 0 : outShift);
   const tx = targetX + (horiz(targetPosition) ? inShift : 0);

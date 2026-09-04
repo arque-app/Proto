@@ -32,6 +32,24 @@ export function toReactFlow(
     else pairs.set(k, [e.id]);
   }
 
+  // A node pointing at itself can't use bottom→top of its own card — that's a
+  // straight line through zero distance and folds into a squiggle over the
+  // title. Route it corner-to-corner instead, so it loops visibly beside the
+  // card. Grouped separately in case a node has more than one self edge.
+  const selfLoops = new Map<string, string[]>();
+  for (const e of doc.edges) {
+    if (e.source !== e.target) continue;
+    const arr = selfLoops.get(e.source);
+    if (arr) arr.push(e.id);
+    else selfLoops.set(e.source, [e.id]);
+  }
+  const SELF_LOOP_HANDLES = [
+    { source: "s-right", target: "t-top" },
+    { source: "s-left", target: "t-top" },
+    { source: "s-right", target: "t-bottom" },
+    { source: "s-left", target: "t-bottom" },
+  ];
+
   // Primary flow uses the direction's main sides; extra edges between the same
   // pair (reciprocals, repeats) leave via a side handle so they loop *around*
   // the nodes instead of cutting through them.
@@ -46,13 +64,22 @@ export function toReactFlow(
     const siblings = pairs.get(pairKey(e.source, e.target))!;
     const idx = siblings.indexOf(e.id);
     const count = siblings.length;
+    const selfLoop = e.source === e.target;
 
-    let sourceHandle = primary.source;
-    let targetHandle = primary.target;
-    if (count > 1 && idx > 0) {
+    let sourceHandle: string;
+    let targetHandle: string;
+    if (selfLoop) {
+      const sibs = selfLoops.get(e.source)!;
+      const hs = SELF_LOOP_HANDLES[sibs.indexOf(e.id) % SELF_LOOP_HANDLES.length]!;
+      sourceHandle = hs.source;
+      targetHandle = hs.target;
+    } else if (count > 1 && idx > 0) {
       const side = idx % 2 === 1 ? sideA : sideB;
       sourceHandle = `s-${side}`;
       targetHandle = `t-${side}`;
+    } else {
+      sourceHandle = primary.source;
+      targetHandle = primary.target;
     }
 
     return {
@@ -63,7 +90,7 @@ export function toReactFlow(
       targetHandle,
       label: e.label || undefined,
       type: "flow",
-      data: { parallelIndex: idx, parallelCount: count },
+      data: { parallelIndex: idx, parallelCount: count, selfLoop },
       style: { stroke: "#6f6f6f", strokeWidth: 1.75 },
       markerEnd: { type: MarkerType.ArrowClosed, width: 15, height: 15, color: "#6f6f6f" },
     };
