@@ -24,8 +24,8 @@ const RENDERABLE_IMAGE = /^(https?:|data:image\/)/i;
  * because it is a portal into another doc, and an untyped node gets a dashed
  * border so an undeclared reference is visible at a glance.
  */
-export function FmlNode({ data, selected }: NodeProps<FmlFlowNode>) {
-  const { label, kind, meta, dir, order } = data;
+export function FmlNode({ id, data, selected }: NodeProps<FmlFlowNode>) {
+  const { label, kind, meta, dir, order, traceRole, onBadge } = data;
   const lr = dir === "LR";
   const primaryTarget = lr ? "left" : "top";
   const primarySource = lr ? "right" : "bottom";
@@ -66,23 +66,41 @@ export function FmlNode({ data, selected }: NodeProps<FmlFlowNode>) {
         <div className="absolute inset-0 -translate-y-1.5 translate-x-1.5 rounded-xl border border-line bg-surface" />
       )}
 
-      {/* step number — its place in the flow, read top to bottom */}
+      {/* prev / next tag — shown while another node's badge is traced */}
+      {(traceRole === "in" || traceRole === "out") && (
+        <div className="absolute -left-2 -top-2.5 z-20 rounded-full border border-line bg-elevated px-1.5 py-[1px] font-mono text-[9px] font-medium uppercase tracking-[0.06em] text-ink-dim">
+          {traceRole === "in" ? "prev" : "next"}
+        </div>
+      )}
+
+      {/* step number — its place in the flow. Click it to trace what connects here. */}
       {typeof order === "number" && (
-        <div
-          className="absolute -right-2.5 -top-2.5 z-20 flex h-[19px] min-w-[19px] items-center justify-center rounded-full border px-1 font-mono text-[10px] font-semibold tabular-nums"
-          style={{
-            borderColor: `color-mix(in srgb, ${accent} 45%, transparent)`,
-            background: "var(--color-elevated)",
-            color: `color-mix(in srgb, ${accent} 75%, var(--color-ink))`,
+        <button
+          type="button"
+          title="Show what connects to this node"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            onBadge?.(id);
           }}
+          className="nodrag absolute -right-2.5 -top-2.5 z-20 flex h-[20px] min-w-[20px] cursor-pointer items-center justify-center rounded-full border px-1 font-mono text-[10px] font-semibold tabular-nums transition-transform hover:scale-110"
+          style={
+            traceRole === "self"
+              ? { borderColor: accent, background: accent, color: "var(--color-bg)" }
+              : {
+                  borderColor: `color-mix(in srgb, ${accent} 45%, transparent)`,
+                  background: "var(--color-elevated)",
+                  color: `color-mix(in srgb, ${accent} 75%, var(--color-ink))`,
+                }
+          }
         >
           {order}
-        </div>
+        </button>
       )}
 
       <div
         title={portal && meta.doc ? `Double-click to open "${meta.doc}"` : undefined}
-        className={`relative flex min-w-[188px] max-w-[264px] overflow-hidden rounded-xl bg-surface-2 transition-shadow ${
+        className={`relative flex min-w-[188px] max-w-[264px] overflow-hidden rounded-xl bg-surface-2 transition-[box-shadow,opacity] ${
           untyped ? "border border-dashed border-line-strong" : "border border-line"
         }`}
         style={
@@ -90,8 +108,12 @@ export function FmlNode({ data, selected }: NodeProps<FmlFlowNode>) {
             ? {
                 borderColor: `color-mix(in srgb, ${accent} 55%, transparent)`,
                 boxShadow: `0 0 0 1px color-mix(in srgb, ${accent} 35%, transparent), 0 6px 22px -6px rgba(0,0,0,0.65)`,
+                opacity: traceRole === "dim" ? 0.25 : undefined,
               }
-            : { boxShadow: "0 2px 14px -3px rgba(0,0,0,0.55)" }
+            : {
+                boxShadow: "0 2px 14px -3px rgba(0,0,0,0.55)",
+                opacity: traceRole === "dim" ? 0.25 : undefined,
+              }
         }
       >
         {/* type rail */}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -12,7 +12,7 @@ import {
 } from "@xyflow/react";
 import { FmlNode } from "./nodes/FmlNode.tsx";
 import { FlowEdge } from "./edges/FlowEdge.tsx";
-import type { FmlFlowNode } from "../types/chart.ts";
+import type { FmlFlowNode, FmlNodeData } from "../types/chart.ts";
 import type { Selection } from "./PropertyPanel.tsx";
 
 const nodeTypes = { fml: FmlNode };
@@ -46,6 +46,9 @@ interface Props {
   onSelect: (sel: Selection | null) => void;
   /** Double-clicking a `flow` node drills into the doc it names. */
   onOpenDoc: (name: string) => void;
+  /** Node id whose neighbourhood is spotlighted (via its step badge), or null. */
+  trace: string | null;
+  onTrace: (id: string | null) => void;
   /** Keeps `fitView` from tucking nodes under the toolbar or side panels. */
   padding: FitPadding;
 }
@@ -56,6 +59,8 @@ export function FlowCanvas({
   selection,
   onSelect,
   onOpenDoc,
+  trace,
+  onTrace,
   padding,
 }: Props) {
   const { fitView } = useReactFlow();
@@ -92,13 +97,73 @@ export function FlowCanvas({
   const selNodeId = selection?.kind === "node" ? selection.id : null;
   const selEdgeId = selection?.kind === "edge" ? selection.id : null;
 
-  const viewNodes = useMemo(
-    () => nodes.map((n) => (n.selected === (n.id === selNodeId) ? n : { ...n, selected: n.id === selNodeId })),
-    [nodes, selNodeId],
+  // The step badge toggles "trace" for its node. Read the current value from a
+  // ref so this callback stays stable and doesn't churn the node memo.
+  const traceRef = useRef(trace);
+  traceRef.current = trace;
+  const onBadge = useCallback(
+    (id: string) => onTrace(traceRef.current === id ? null : id),
+    [onTrace],
   );
+
+  // Immediate predecessors / successors of the traced node, and each edge's
+  // role in that neighbourhood. Null when nothing is traced.
+  const traceView = useMemo(() => {
+    if (!trace) return null;
+    const preds = new Set<string>();
+    const succs = new Set<string>();
+    const edgeRole = new Map<string, "in" | "out">();
+    for (const e of edges) {
+      if (e.source === trace) {
+        succs.add(e.target);
+        edgeRole.set(e.id, "out");
+      }
+      if (e.target === trace) {
+        preds.add(e.source);
+        edgeRole.set(e.id, "in");
+      }
+    }
+    return { preds, succs, edgeRole };
+  }, [trace, edges]);
+
+  const viewNodes = useMemo(
+    () =>
+      nodes.map((n) => {
+        const selected = n.id === selNodeId;
+        const role: FmlNodeData["traceRole"] = !traceView
+          ? undefined
+          : n.id === trace
+            ? "self"
+            : traceView.succs.has(n.id)
+              ? "out"
+              : traceView.preds.has(n.id)
+                ? "in"
+                : "dim";
+        const same =
+          n.selected === selected && n.data.traceRole === role && n.data.onBadge === onBadge;
+        return same ? n : { ...n, selected, data: { ...n.data, traceRole: role, onBadge } };
+      }),
+    [nodes, selNodeId, trace, traceView, onBadge],
+  );
+
   const viewEdges = useMemo(
-    () => edges.map((e) => (e.selected === (e.id === selEdgeId) ? e : { ...e, selected: e.id === selEdgeId })),
-    [edges, selEdgeId],
+    () =>
+      edges.map((e) => {
+        const selected = e.id === selEdgeId;
+        if (!traceView) return e.selected === selected ? e : { ...e, selected };
+        const role = traceView.edgeRole.get(e.id);
+        const dim = !role;
+        return {
+          ...e,
+          selected,
+          markerEnd: dim ? undefined : e.markerEnd,
+          style: dim
+            ? { ...e.style, opacity: 0.1 }
+            : { ...e.style, opacity: 1, strokeWidth: 2.25 },
+          data: { ...e.data, traceDim: dim },
+        };
+      }),
+    [edges, selEdgeId, traceView],
   );
 
   return (
@@ -114,7 +179,10 @@ export function FlowCanvas({
           if (doc) onOpenDoc(doc);
         }}
         onEdgeClick={(_, e) => onSelect({ kind: "edge", id: e.id })}
-        onPaneClick={() => onSelect(null)}
+        onPaneClick={() => {
+          onSelect(null);
+          onTrace(null);
+        }}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         fitView

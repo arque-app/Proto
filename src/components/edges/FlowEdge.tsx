@@ -83,6 +83,8 @@ export function FlowEdge({
         <EdgeLabelRenderer>
           <div
             className={`pointer-events-none absolute z-[6] rounded-md px-1.5 py-0.5 font-mono text-[10px] font-medium shadow-[0_1px_6px_rgba(0,0,0,0.55)] transition-colors ${
+              data?.traceDim === true ? "opacity-20" : ""
+            } ${
               selected
                 ? "bg-accent/15 text-ink ring-1 ring-accent/60"
                 : "bg-elevated text-ink-dim ring-1 ring-line"

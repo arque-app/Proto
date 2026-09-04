@@ -52,8 +52,13 @@ export function App() {
   const [sourceOpen, setSourceOpen] = useState(false);
   const [activeDoc, setActiveDoc] = useState<string | null>(null);
   const [sel, setSel] = useState<Selection | null>(null);
+  // Node id whose neighbourhood is spotlighted, set by clicking a step badge.
+  const [trace, setTrace] = useState<string | null>(null);
 
   const chart = useFmlChart(ws, activeDoc, dir, strict);
+
+  // A trace id is doc-local; drop it whenever the doc or file changes.
+  useEffect(() => setTrace(null), [chart.activeDoc, ws.entry]);
 
   const addFiles = useCallback(
     (added: Record<string, string>) => {
@@ -171,7 +176,10 @@ export function App() {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
       const typing = !!el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
-      if (e.key === "Escape" && !typing) setSel(null);
+      if (e.key === "Escape" && !typing) {
+        setSel(null);
+        setTrace(null);
+      }
       if (e.key === "\\" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         setSidebarOpen((v) => !v);
@@ -222,6 +230,8 @@ export function App() {
             selection={sel}
             onSelect={setSel}
             onOpenDoc={openDoc}
+            trace={trace}
+            onTrace={setTrace}
             padding={padding}
           />
           <Toolbar
