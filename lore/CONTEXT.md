@@ -46,11 +46,21 @@ orthogonal** — dropped the bowed-bezier branch in `FlowEdge` entirely;
 reciprocal/repeated/back edges now use `getSmoothStepPath` too, stood off into
 a gutter via `offset` (24 + tier*18; routed=30), so long returns run in a tidy
 vertical lane instead of a curve across the diagram.
-Still open (shown in JB's screenshot, not fixed): multiple out-edges leave one
-node from a single handle point → labels stack ("step 1"/"step 2"); long
-rank-skipping edges still get a lonely (now orthogonal) lane; big graphs sprawl
-wide; `service` isn't in the 5-type standard so that agent's file threw 7
-warnings. Pass 3 needs JB's actual `.fml` to tune against.
+`service` isn't in the 5-type standard so that agent's file threw 7 warnings.
+(5) Pass 3 + trace feature (`0c1ba27` + `8de77c2`, deployed). On a real
+Plaid-resync graph JB reported labels still hidden. Root cause: React Flow
+paints the node layer *after* the edge-label layer with no z-index, so any
+label over a card is covered — fixed by `z-[6]` + shadow on the label. Also
+`fanEdges` in `useFmlChart` tags each edge with its index among siblings that
+share an exit/entry point; `FlowEdge` spreads the endpoint along the node side
+(clamped to the border) so stacked labels ("step 1"/"step 2") separate.
+Then, JB's ask: the step badge is now a button — click it and the canvas
+spotlights that node's one-hop neighbourhood (self badge fills, predecessors
+tagged PREV, successors NEXT, everything else → 20%). `trace` state in App,
+neighbour sets computed in FlowCanvas; clears on Esc / pane-click / doc switch.
+Still open: long rank-skipping edges get a lonely lane; big graphs sprawl wide;
+badge is a 20px target (small); trace + selection are independent; trace is
+one-hop only (full up/down-stream chain would be a small change).
 Loaded: CLAUDE.md, GUARDRAILS.md, CONTEXT.md
 
 ### 2026-09-04 — JB / Claude — node standard + full design pass  (branch `polish/design-and-node-standard`)
