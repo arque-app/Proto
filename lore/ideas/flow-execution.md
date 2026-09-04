@@ -1,7 +1,9 @@
 # Idea: executable FML flows + variables  (the north star)
 
-**Status:** step 1 (node standardisation) and step 2 (variables — parser +
-resolved-value view) are done. Step 3 (the runner) is not scheduled.
+**Status:** step 1 (node standardisation), step 2 (variables) and step 3 (the
+**engine**) are done — `src/fml/run.ts`, driven by `scripts/run.ts`, executes a
+flow against a real API from the terminal today. What's left of step 3 is the
+*browser* runner, which is blocked on the CORS answer, and on-canvas result UI.
 **Raised by:** JB — "we'll need to add Variables… this is the whole dream for the
 tool. i'll execute this api flow in the platform so i can test the api flow."
 
@@ -67,10 +69,27 @@ An `event` node can seed the run's starting variables.
    locked (`src/fml/nodeTypes.ts`); the `api` key set above is the standard.
 2. **Variables** — DONE. `{…}` interpolation + `@vars` + `capture` parsing,
    resolved and shown in the property panel. No network yet.
-3. Runner: an execution engine that walks a flow, sends requests (needs a CORS
-   story — proxy, or the platform backend JB mentioned), shows per-step
-   pass/fail on the canvas. Blocked on: the cross-doc variable scope question
-   above, and the CORS/backend decision.
+3. **Engine — DONE** (2026-09-05, `src/fml/run.ts` + `scripts/run.ts`). Walks
+   the graph, sends each `api` node, threads `capture`d values through one
+   run-wide store, asserts `expect`, routes on the response status. Zero deps;
+   the transport is an argument, so tests drive it with a fake and Node drives
+   it with `fetch` — no CORS in Node, so flows are runnable *now*.
+   The cross-doc scope question turned out **not** to block this: at run time
+   there is a single flat variable store, so whether a capture crosses a portal
+   is a *routing* decision (does the walk step into the portal's doc?), not a
+   variables one. Whenever routing says yes, the values are already there.
+4. Browser runner: swap the transport for `fetch`-behind-a-proxy (or the
+   backend), then per-step pass/fail on the canvas. Blocked on: the CORS
+   decision, and the run-result UI.
+
+### Open question the engine surfaced
+
+`expect: 200` and an outgoing `-404>` edge disagree about what a 404 *is*: the
+assertion calls it a failure, the edge calls it a modelled path. Today `expect`
+decides pass/fail and the walk stops at the first failure unless
+`--keep-going`. Alternative worth considering: if a status has a matching edge,
+the author clearly modelled it — keep walking it (still red overall if `expect`
+says so), so you see the whole sad path instead of one line. Needs JB's call.
 
 Related: [[fml-on-fml]] (a `flow` portal could be a reusable sub-sequence in a
 run), [[edge-notes]] (an edge could carry a `when:` guard for the runner).

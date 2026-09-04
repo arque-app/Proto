@@ -30,6 +30,8 @@ into the source file.
 | `src/fml/` | The language. Parser, node-type standard, stats. **Zero dependencies** — keep it that way, it has to run in Node and the browser. |
 | `src/fml/nodeTypes.ts` | The canonical node vocabulary (`page`/`api`/`decision`/`event`/`flow`) and their expected keys. Changing it changes the language. |
 | `src/fml/variables.ts` | `{name}` resolution — `@vars` defaults + `capture.<name>` on an earlier node in the same doc. Per-doc scope; cross-doc (through a `flow` portal) is an open question, not decided. |
+| `src/fml/run.ts` | The execution engine — sends `api` nodes, threads `capture`d values, asserts `expect`, routes on status. **Takes its transport as an argument** — never call the network from in here, that's what keeps it testable and CORS-agnostic. |
+| `scripts/run.ts` | CLI runner (`npm run run-flow -- <file.fml>`). Node has no CORS, so flows execute today. `--dry` prints the request plan. |
 | `src/lib/fmlEdit.ts` | Write-back: targeted text surgery into one `@doc`'s span. Never re-serialises the whole file — comments and formatting must survive. |
 | `src/lib/` | layout (dagre), toReactFlow, node styling |
 | `src/hooks/useForceLayout.ts` | Repulsion physics layered on dagre's rank layout (nodes never overlap, react live while dragging). Dagre still owns structure — rank, back-edge routing, badge order; this only refines pixel position in `FlowCanvas`. |
@@ -38,8 +40,9 @@ into the source file.
 
 ## Working rules
 
-- **Run `npm test` and `npm run build` before saying anything works.** Three
-  suites: `src/fml/parse.test.ts`, `src/fml/stats.test.ts`, `src/lib/fmlEdit.test.ts`.
+- **Run `npm test` and `npm run build` before saying anything works.** Five
+  suites: `src/fml/parse.test.ts`, `stats.test.ts`, `variables.test.ts`,
+  `run.test.ts`, `src/lib/fmlEdit.test.ts`.
 - **`npm run demo -- <file>` is the structural check** when you can't see the canvas.
 - **Language changes ripple.** A new node type or key touches the parser, the
   renderer, the property panel, `HOW-TO.md` and the examples. Do all of them.

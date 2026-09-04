@@ -1,0 +1,49 @@
+# run.fml — a flow that actually executes.
+#
+#   node scripts/run.ts examples/run.fml
+#   node scripts/run.ts examples/run.fml --dry     # show the requests, send nothing
+#
+# Hits jsonplaceholder.typicode.com, a public read-only sandbox API, so this
+# runs with no keys and no side effects. The point is the chain: the first
+# request captures a value, the second one uses it.
+
+@meta
+  title: Runnable demo
+  base: https://jsonplaceholder.typicode.com
+
+@vars
+  userId: 1
+
+@nodes
+  Start     = page
+  getUser   = api
+  getPosts  = api
+  Done      = page
+  NotFound  = page
+
+@node getUser {
+  method: GET
+  path: /users/{userId}
+  header.Accept: application/json
+  capture.username: $.username
+  capture.city: $.address.city
+  expect: 200
+}
+
+# {username} below came out of the response above — that is the whole feature.
+@node getPosts {
+  method: GET
+  path: /posts
+  query.userId: {userId}
+  capture.firstPostTitle: $[0].title
+  expect: 200
+}
+
+@flow
+  Start -run> getUser
+
+  getUser:
+    -200> getPosts
+    -404> NotFound
+
+  getPosts -200> Done

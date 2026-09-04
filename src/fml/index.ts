@@ -24,3 +24,27 @@ export type {
 } from "./types.ts";
 export { nodeVarUsage, resolveVariables, varsInNode, varsInValue } from "./variables.ts";
 export type { NodeVarUsage, ResolvedVar, VarSource } from "./variables.ts";
+export {
+  buildRequest,
+  chooseEdge,
+  interpolate,
+  isStatusLabel,
+  readPath,
+  requiredInputs,
+  runFlow,
+  runNode,
+  startNode,
+  statusMatches,
+} from "./run.ts";
+export type {
+  BuiltRequest,
+  CaptureResult,
+  HttpRequest,
+  HttpResponse,
+  Interpolated,
+  RunOptions,
+  RunResult,
+  StepResult,
+  StopReason,
+  Transport,
+} from "./run.ts";

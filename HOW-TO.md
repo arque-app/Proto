@@ -185,12 +185,11 @@ nothing is limited to `method` / `path` / `auth`.
 > belongs to the transition rather than to either box — see
 > [Edge notes](#edge-notes) under `@flow`.
 
-### `api` keys are execution-ready
+### `api` keys are execution-ready — and they execute
 
 FML's north star is *running* a flow as an API test (see
-`lore/ideas/flow-execution.md`). Nothing executes yet, but the `api` key set is
-already the one the runner will use, so what you write today will run later
-without a rewrite:
+`lore/ideas/flow-execution.md`). The engine is real now: these keys are what it
+sends. See [Running a flow](#running-a-flow) below.
 
 ```
 @meta
@@ -218,13 +217,64 @@ without a rewrite:
   suffix is the header/param/variable name, so each can appear any number of
   times in one block.
 - `{name}` is a **variable reference**. `capture.token: $.data.token` pulls a
-  value out of one response (JSONPath) so a later node can spend it as `{token}`.
-- `expect:` is the status the runner will assert — `200`, or `200,201`.
+  value out of one response so a later node can spend it as `{token}`.
+- `auth:` is sugar over the Authorization header — `none` sends nothing,
+  `bearer {token}` sends `Bearer <value>`, anything else is sent literally.
+- `expect:` is the status assertion — `200`, `200,201`, `2xx`, or `200-204`.
 
-No network call happens yet — there's no runner (see
-`lore/ideas/flow-execution.md`). But `{name}` *is* resolved today: click a node
-and its **About** tab lists every variable it references and where the value
-comes from. See below.
+`{name}` is also resolved *statically*: click a node and its **About** tab lists
+every variable it references and where the value comes from. See below.
+
+### Running a flow
+
+```bash
+node scripts/run.ts examples/run.fml           # send it
+node scripts/run.ts examples/run.fml --dry     # print the requests, send nothing
+```
+
+The engine (`src/fml/run.ts`) walks the graph from the node nothing points at,
+sends every `api` node it reaches, folds each `capture` into a single run-wide
+variable store, and asserts `expect`. Exit code is 0 on pass, 1 on fail — it
+works as a CI check as-is.
+
+**Which edge it follows.** After an `api` node, the response status picks the
+branch: that is exactly what `-200>` / `-404>` mean. Otherwise a lone outgoing
+edge is taken whatever its label. If several edges leave a node and no status
+can choose between them, the run **stops and says so** rather than guessing a
+path and reporting a green test that never touched the branch you cared about.
+
+**Capture paths** read from the response:
+
+| path | reads |
+|---|---|
+| `$.data.token` | into the JSON body (the leading `$.` is optional) |
+| `$.items[0].id` | array index |
+| `$` | the whole body, verbatim |
+| `status` | the status code |
+| `header.<Name>` | a response header, case-insensitive |
+
+A capture that finds nothing **fails the step** — a silently-empty `{token}`
+is the worst outcome a test run can have.
+
+**Supplying run-time inputs.** A `{name}` with no `@vars` default and no
+`capture` is an input you pass in — that's the point of leaving secrets out of
+the file:
+
+```bash
+FML_VAR_password=… node scripts/run.ts login.fml     # preferred
+node scripts/run.ts login.fml --var password=…       # lands in shell history
+```
+
+The run refuses to start if any are missing, and refuses to *send* a request
+that still contains an unresolved `{name}` — a literal `{token}` in a header is
+a bug, not a request.
+
+**Flags:** `--doc <name>` picks a doc, `--start <nodeId>` starts elsewhere,
+`--keep-going` walks past a failed step, `--json` dumps the whole run.
+
+> No browser runner yet — that needs the CORS answer (proxy vs. the backend JB
+> mentioned). The engine takes its transport as an argument precisely so that
+> decision changes one function, not this logic.
 
 ### Variables — `{name}`
 
@@ -237,10 +287,10 @@ is a reference, resolved one of two ways:
   $.data.token` on `authLogin` means `{token}` resolves to "captured by
   authLogin" — the actual value only exists once that request has really run.
 
-A `{name}` that's neither declared nor captured is a **run-time input** — it
-resolves to nothing today. That's deliberate for secrets: `{password}` with no
-`@vars` entry stays unset, so nothing sensitive sits in a file you'd commit.
-Once the runner exists, an unresolved variable is what it'll prompt you for.
+A `{name}` that's neither declared nor captured is a **run-time input**. That's
+deliberate for secrets: `{password}` with no `@vars` entry stays unset, so
+nothing sensitive sits in a file you'd commit — you supply it when you run
+(`FML_VAR_password=…`, see [Running a flow](#running-a-flow)).
 
 Variable scope is **per-doc** today — a `capture` in one `@doc`/`@fof` file
 doesn't resolve a `{name}` used in another, even across a `flow` portal that's
