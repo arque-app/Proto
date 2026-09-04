@@ -37,9 +37,20 @@ diagonally + straight chains staircasing. Pure force relaxation is the wrong
 tool for a ranked flowchart. Fix: forward edges → `getSmoothStepPath`
 (orthogonal, 8px corners) in `FlowEdge`; back/reciprocal/parallel keep the
 bowed C-curve. dagre `align: "UL"` + `nodesep`/`ranksep` 54/100 to straighten
-chains. Verified both sample docs in the browser. Pass 2 candidates if still
-messy: long rank-skipping edges get a stranded lane; columns don't align on
-one spine; feed React Flow's measured node sizes back for a second layout.
+chains.
+(4) Pass 2 (`cf546d1`, deployed). JB on a real Plaid-resync graph: still messy.
+Two changes: (a) **step-number badges** — `layout.ts` numbers nodes 1..k by
+dagre rank (same-rank nodes share a number), rendered as a small accent pill
+top-right of every card (`FmlNode`, `FmlNodeData.order`). (b) **all edges
+orthogonal** — dropped the bowed-bezier branch in `FlowEdge` entirely;
+reciprocal/repeated/back edges now use `getSmoothStepPath` too, stood off into
+a gutter via `offset` (24 + tier*18; routed=30), so long returns run in a tidy
+vertical lane instead of a curve across the diagram.
+Still open (shown in JB's screenshot, not fixed): multiple out-edges leave one
+node from a single handle point → labels stack ("step 1"/"step 2"); long
+rank-skipping edges still get a lonely (now orthogonal) lane; big graphs sprawl
+wide; `service` isn't in the 5-type standard so that agent's file threw 7
+warnings. Pass 3 needs JB's actual `.fml` to tune against.
 Loaded: CLAUDE.md, GUARDRAILS.md, CONTEXT.md
 
 ### 2026-09-04 — JB / Claude — node standard + full design pass  (branch `polish/design-and-node-standard`)
