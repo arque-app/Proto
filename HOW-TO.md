@@ -548,10 +548,14 @@ What the viewer gives you beyond the picture:
 - The panel knows the standard: it lists the type's expected keys as one-click
   chips and explains what the type means.
 - **Double-click a `flow` node** to drill into the doc its `doc:` key names.
-- **strict** toggles the linting: off while you sketch, on before you hand the
-  file over.
+- **Click a step badge** (top-right of a card) to spotlight that node's
+  immediate `prev` / `next` neighbours and dim the rest.
+- **Walkthrough** (bottom-right) lists the flow as plain steps; **the error /
+  warning count** in the toolbar opens the issue list. Both collapse.
 - **Esc** clears the selection, **⌘\\** hides the sidebar, **Save** downloads the
-  entry file, **Reset** restores the sample.
+  entry file, **Reset** restores the sample. The viewer always parses in loose
+  mode (warnings, never blocked); pass `{ strict: true }` to `parse()` for the
+  strict pass.
 
 ---
 
