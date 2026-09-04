@@ -1,13 +1,70 @@
 # Context — F*ML
 
 **Focus:** FML — `.fml` Flowchart Markup Language: parser (`src/fml/`) + web viewer (React Flow + dagre)
-**Phase:** R&D — language standardised (5 node types) and now variable-aware (`@vars` + `capture` resolution); viewer redesigned; live at https://protoarch.web.app
-**Open:** **cross-doc variable scope is undecided** — a `capture` in one `@doc` doesn't resolve a `{name}` in a doc it portals into via `flow`, even though that's the same journey continuing (needed before the runner can thread a variable through a portal); node rename + add/delete node/edge (structural — needs an FmlDoc→text serializer); breadcrumb for portal drill-down (the jump itself works); "Open folder" (File System Access API); sidebar resize; label crowding on primary+reciprocal at one node; `#` in a value is still eaten by the comment lexer (JB's call); `public/index.html` is dead Firebase boilerplate; a handful of `lore/` reference docs (`GUARDRAILS.md`, `INDEX.md`, `architecture/*.md`, `ideas/*.md`, `testing/registry.md`) still say "protoArch" here and there — not yet swept, low-stakes
-**Next:** the runner (execution engine, needs a CORS/backend story) — blocked on the cross-doc variable question above; graph-relaxation layout pass is still open too
+**Phase:** R&D — language standardised (5 node types) and now variable-aware (`@vars` + `capture` resolution); viewer redesigned with a physics-refined layout; live at https://protoarch.web.app, also reachable at https://fml.arque.app (custom domain, same Firebase project)
+**Open:** **live drag-reactive repulsion is unverified** — built (`useForceLayout.ts`), confirmed via DOM inspection that nodes never overlap after the initial settle, but the actual "drag a node and neighbours push away" interaction couldn't be tested this session — browser automation here can't produce a real press-and-hold gesture against this page (pointermove fires, pointerdown/up never do); needs JB to try it with a real mouse; the "expand a flow/@fof node into a coloured bubble of its sub-doc" feature is designed but not built — next round, wants the repulsion foundation solid first; cross-doc variable scope is undecided — a `capture` in one `@doc` doesn't resolve a `{name}` in a doc it portals into via `flow`; node rename + add/delete node/edge (structural — needs an FmlDoc→text serializer); breadcrumb for portal drill-down (the jump itself works); "Open folder" (File System Access API); sidebar resize; label crowding on primary+reciprocal at one node; `#` in a value is still eaten by the comment lexer (JB's call); `public/index.html` is dead Firebase boilerplate; a handful of `lore/` reference docs (`GUARDRAILS.md`, `INDEX.md`, `architecture/*.md`, `ideas/*.md`, `testing/registry.md`) still say "protoArch" here and there — not yet swept, low-stakes
+**Next:** JB to verify the drag-repel feel with a real mouse; then the expand-into-bubble feature; the runner (execution engine, needs a CORS/backend story) — blocked on the cross-doc variable question; graph-relaxation is now addressed by the physics layer
 
 ---
 
 ## Log
+
+### 2026-09-05 — JB / Claude — Repulsion physics on top of dagre
+JB: "i want the nodes to behave like they repel eachother with a threashold...
+exactly like neo4j nodes and edges." Flagged the tension first — Neo4j's graph
+view is pure force-directed (no rank, no top-to-bottom order), which would
+undo the orthogonal routing / back-edge gutters / step badges / PREV-NEXT trace
+colour all built around dagre's ranked layout. Asked which he meant; JB:
+**"option A, the flow should still be top to bottom"** — repulsion layered on
+the existing layout, not a replacement.
+
+Shipped (not deployed — JB needs to verify the live-drag feel first, see Open):
+- New dependency `d3-force`. `layout.ts` gains `nodeSize()` (the same
+  width/height estimate dagre already used internally, now shared).
+- New `src/hooks/useForceLayout.ts`: a `forceSimulation` seeded from dagre's
+  positions. `forceCollide` (radius = half-diagonal + padding) is the actual
+  "repel with a threshold" — two cards can never overlap. `forceManyBody`
+  adds general breathing room. `forceY`/`forceX` (whichever is the rank axis
+  for the current `dir`) pulls each node back toward its dagre position,
+  strongly on the rank axis (keeps top-to-bottom order) and weakly on the free
+  axis (so collision still has room to spread nodes sideways). Existing nodes
+  keep their current settled/dragged spot across an unrelated edit — only
+  size/anchor refresh — so editing a node's text doesn't reset the whole
+  graph; new nodes seed in at their dagre spot and animate to a settle.
+- Dagre still owns *structure* — rank, back-edge routing, handle sides, badge
+  order — computed once in `useFmlChart` before physics ever runs; the force
+  layer only refines final pixel position in `FlowCanvas`, so nothing else in
+  the pipeline needed to change.
+- `FlowCanvas`: `onNodeDrag` pins the dragged node in the simulation
+  (`fx/fy`) and reheats it so neighbours push away live; `onNodeDragStop`
+  re-anchors it to the drop point (so the rank-pull doesn't fight the user's
+  own placement) before releasing the pin. The currently-dragged node's own
+  position always comes from React Flow's own state, never a physics tick,
+  to avoid a one-frame-stale fight.
+
+Verified via direct DOM inspection (not just screenshots): built an 8-node,
+3-way-branch test doc, confirmed **zero bounding-box overlaps** after settle,
+confirmed the existing self-loop routing and top-to-bottom order both still
+render correctly. Could **not** verify the live drag-reactive part — spent a
+long debugging pass (raw `pointerdown/move/up` listener at the window level)
+and confirmed the browser-automation tool in this environment fires
+`pointermove` but never `pointerdown`/`pointerup` against this page, so
+React Flow never starts a drag session no matter what the code does. Ruled
+out the code as the cause (tested with the physics override fully disabled —
+still no movement) before concluding it's a tool limitation. Flagged to JB to
+test with a real mouse rather than claiming something unverified works.
+
+Also this session: JB shared the **expand a `flow`/`@fof` portal into a
+coloured "bubble" of its sub-doc's nodes, right there on the canvas** idea —
+an expand toggle next to the step badge, React Flow's parent/child grouped
+nodes are a natural fit. Designed, not built — deliberately sequenced after
+the repulsion foundation (an expanded bubble's nodes need room, which physics
+now provides) rather than building both large things in one pass.
+
+Also: JB pointed at **https://fml.arque.app** as "the official site" — a
+custom domain he set up in Firebase pointing at the same `protoarch` hosting
+project (confirmed via fetch: same deployed app). No repo config to update —
+custom domains aren't stored there.
 
 ### 2026-09-04 — JB / Claude (cont.) — Variables land: `@vars` + `capture` resolution
 JB: "we're gonna work on standardising some nodes coz we need to perform

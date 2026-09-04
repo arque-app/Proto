@@ -28,6 +28,11 @@ function estimateHeight(data: FmlNodeData): number {
   return h;
 }
 
+/** Same size estimate dagre lays out with — shared with the force-repulsion pass. */
+export function nodeSize(data: FmlNodeData): { w: number; h: number } {
+  return { w: NODE_W, h: estimateHeight(data) };
+}
+
 /** Run dagre and return the nodes with absolute positions + handle sides set. */
 export function layout(
   nodes: FmlFlowNode[],

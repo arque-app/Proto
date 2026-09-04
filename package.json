@@ -13,7 +13,9 @@
   },
   "dependencies": {
     "@dagrejs/dagre": "^1.1.4",
+    "@types/d3-force": "^3.0.10",
     "@xyflow/react": "^12.3.5",
+    "d3-force": "^3.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

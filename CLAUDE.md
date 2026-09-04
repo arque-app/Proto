@@ -32,6 +32,7 @@ into the source file.
 | `src/fml/variables.ts` | `{name}` resolution — `@vars` defaults + `capture.<name>` on an earlier node in the same doc. Per-doc scope; cross-doc (through a `flow` portal) is an open question, not decided. |
 | `src/lib/fmlEdit.ts` | Write-back: targeted text surgery into one `@doc`'s span. Never re-serialises the whole file — comments and formatting must survive. |
 | `src/lib/` | layout (dagre), toReactFlow, node styling |
+| `src/hooks/useForceLayout.ts` | Repulsion physics layered on dagre's rank layout (nodes never overlap, react live while dragging). Dagre still owns structure — rank, back-edge routing, badge order; this only refines pixel position in `FlowCanvas`. |
 | `src/components/` | canvas, sidebar, toolbar, property panel, source editor |
 | `examples/` | Reference `.fml` files. **All must parse clean under strict mode.** |
 

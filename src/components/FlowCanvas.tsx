@@ -12,9 +12,11 @@ import {
 } from "@xyflow/react";
 import { FmlNode } from "./nodes/FmlNode.tsx";
 import { FlowEdge } from "./edges/FlowEdge.tsx";
+import { useForceLayout } from "../hooks/useForceLayout.ts";
+import { nodeSize } from "../lib/layout.ts";
 import { savePositions } from "../lib/nodePositions.ts";
 import { TRACE_IN, TRACE_OUT } from "../lib/nodeStyle.ts";
-import type { FmlFlowNode, FmlNodeData } from "../types/chart.ts";
+import type { FmlFlowNode, FmlNodeData, LayoutDirection } from "../types/chart.ts";
 import type { Selection } from "./PropertyPanel.tsx";
 
 const nodeTypes = { fml: FmlNode };
@@ -82,6 +84,14 @@ export function FlowCanvas({
     setEdges(chartEdges);
   }, [chartNodes, chartEdges, setNodes, setEdges]);
 
+  // Repulsion layered on dagre's rank layout — see useForceLayout for the why.
+  // The id currently being dragged is tracked outside React state (a ref, read
+  // fresh each render) so its position always comes straight from React Flow's
+  // own drag math, never a one-tick-stale physics position.
+  const dir: LayoutDirection = chartNodes[0]?.data.dir ?? "TB";
+  const force = useForceLayout(chartNodes, dir);
+  const draggingId = useRef<string | null>(null);
+
   // Auto-fit only when the graph itself changes (new file / doc / direction) —
   // never when a panel opens. `padding` changes on every selection, so it is
   // read from a ref here instead of being a dependency, or each node click
@@ -144,11 +154,23 @@ export function FlowCanvas({
               : traceView.preds.has(n.id)
                 ? "in"
                 : "dim";
+        // The dragged node's position is React Flow's own — never override it
+        // with a physics tick that may already be a frame behind the pointer.
+        const forced = draggingId.current === n.id ? undefined : force.positions.get(n.id);
+        const position = forced
+          ? { x: forced.x - nodeSize(n.data).w / 2, y: forced.y - nodeSize(n.data).h / 2 }
+          : n.position;
         const same =
-          n.selected === selected && n.data.traceRole === role && n.data.onBadge === onBadge;
-        return same ? n : { ...n, selected, data: { ...n.data, traceRole: role, onBadge } };
+          n.selected === selected &&
+          n.data.traceRole === role &&
+          n.data.onBadge === onBadge &&
+          n.position.x === position.x &&
+          n.position.y === position.y;
+        return same
+          ? n
+          : { ...n, selected, position, data: { ...n.data, traceRole: role, onBadge } };
       }),
-    [nodes, selNodeId, trace, traceView, onBadge],
+    [nodes, selNodeId, trace, traceView, onBadge, force.positions],
   );
 
   const viewEdges = useMemo(
@@ -195,13 +217,22 @@ export function FlowCanvas({
           onSelect(null);
           onTrace(null);
         }}
+        onNodeDrag={(_, node) => {
+          draggingId.current = node.id;
+          const { w, h } = nodeSize(node.data);
+          force.onDrag(node.id, node.position.x + w / 2, node.position.y + h / 2);
+        }}
         onNodeDragStop={(_, node, draggedNodes) => {
+          draggingId.current = null;
           // Positions never go into the .fml — save the drop point outside it,
           // right away, so it survives a doc switch instead of resetting to
           // auto-layout. Covers a multi-node drag too.
           const moved = draggedNodes && draggedNodes.length > 0 ? draggedNodes : [node];
           const positions: Record<string, { x: number; y: number }> = {};
-          for (const n of moved) positions[n.id] = n.position;
+          for (const n of moved) {
+            force.onDragEnd(n.id);
+            positions[n.id] = n.position;
+          }
           savePositions(posDocKey, positions);
         }}
         nodeTypes={nodeTypes}
