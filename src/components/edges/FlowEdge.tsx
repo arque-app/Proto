@@ -38,12 +38,16 @@ export function FlowEdge({
   selected,
 }: EdgeProps) {
   const index = Number(data?.parallelIndex ?? 0);
+  // A back edge (target in an earlier rank) is re-routed onto one side by
+  // `useFmlChart` and marked here, so it gets the same wide arc as a parallel
+  // edge instead of a bezier that would cut back through the node stack.
+  const routed = typeof data?.routed === "string";
 
   let path: string;
   let labelX: number;
   let labelY: number;
 
-  if (index === 0) {
+  if (index === 0 && !routed) {
     [path, labelX, labelY] = getBezierPath({
       sourceX,
       sourceY,
@@ -59,8 +63,11 @@ export function FlowEdge({
   } else {
     // Same-side handles: bow outward by a fixed amount (getBezierPath collapses
     // to a near-straight line when the handles are vertically colinear).
-    const tier = Math.floor((index - 1) / 2); // 0 for idx 1/2, 1 for idx 3/4…
-    const bow = SIDE_BOW + tier * 46;
+    const tier = index > 0 ? Math.floor((index - 1) / 2) : 0; // 0 for idx 1/2…
+    const span = Math.hypot(targetX - sourceX, targetY - sourceY);
+    const bow = routed
+      ? 74 + Math.min(span * 0.08, 64) // scale a back edge's bow with its reach
+      : SIDE_BOW + tier * 46;
     const d = awayFrom(sourcePosition);
     const c1x = sourceX + d.x * bow;
     const c1y = sourceY + d.y * bow;

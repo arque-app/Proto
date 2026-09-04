@@ -22,6 +22,43 @@ export interface FmlChart {
 }
 
 /**
+ * A "back edge" points at a node in an earlier rank (its target sits above the
+ * source in TB, or left of it in LR). With the default bottom→top handles it
+ * would drive straight up through every rank in between, passing behind the
+ * nodes. Re-route it out one side so it loops cleanly around the outside; the
+ * side is picked so it bows away from the diagram's spine. Parallel edges are
+ * already side-routed by `toReactFlow`, so they're left alone.
+ */
+function routeBackEdges(edges: Edge[], laid: FmlFlowNode[], dir: LayoutDirection): Edge[] {
+  const pos = new Map(laid.map((n) => [n.id, n.position]));
+  return edges.map((e) => {
+    const s = pos.get(e.source);
+    const t = pos.get(e.target);
+    if (!s || !t) return e;
+    if ((Number(e.data?.parallelCount ?? 1)) > 1) return e;
+
+    const back = dir === "LR" ? t.x < s.x - 1 : t.y < s.y - 1;
+    if (!back) return e;
+
+    const side =
+      dir === "LR"
+        ? s.y <= t.y
+          ? "bottom"
+          : "top"
+        : s.x >= t.x
+          ? "right"
+          : "left";
+
+    return {
+      ...e,
+      sourceHandle: `s-${side}`,
+      targetHandle: `t-${side}`,
+      data: { ...e.data, routed: side },
+    };
+  });
+}
+
+/**
  * Parse the workspace entry file (resolving `@fof` against the other files),
  * then lay out whichever doc is active.
  * `strict: false` keeps rendering a half-typed file — undeclared refs become
@@ -38,9 +75,10 @@ export function useFmlChart(
     const res = parse(src, { strict, resolve: makeResolver(workspace.files) });
     const doc = res.file.docs.find((d) => d.name === activeDoc) ?? res.file.docs[0]!;
     const { nodes, edges } = toReactFlow(doc, dir);
+    const laid = layout(nodes, edges, dir);
     return {
-      nodes: layout(nodes, edges, dir),
-      edges,
+      nodes: laid,
+      edges: routeBackEdges(edges, laid, dir),
       stats: analyze(doc),
       doc,
       docs: res.file.docs.map((d) => d.name),
