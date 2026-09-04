@@ -140,6 +140,11 @@ transferred the GitHub repo from `arque-app/ProtoArch` to
 `github.com/joabeliot/ProtoArch` (personal account). History intact — fetch
 confirmed `origin/main` matches local HEAD after the remote switch. Updated
 `CLAUDE.md`'s Repo line; this file's header above.
+(13) Trackpad pan (`8b7f32e`, deployed). JB: two-finger scroll zoomed instead
+of panning. `<ReactFlow>` was on defaults (`zoomOnScroll: true`); set
+`panOnScroll` + `zoomOnScroll={false}` + `zoomOnPinch` (kept explicit) —
+two-finger scroll pans, pinch zooms, matching Figma/Miro. Config-only; couldn't
+simulate a real trackpad gesture to verify feel, flagged that to JB.
 Still open: long rank-skipping edges get a lonely lane; big graphs sprawl wide;
 badge is a 20px target (small); trace + selection are independent; trace is
 one-hop only (full up/down-stream chain would be a small change).
