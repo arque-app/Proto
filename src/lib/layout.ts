@@ -35,7 +35,11 @@ export function layout(
   dir: LayoutDirection,
 ): FmlFlowNode[] {
   const g = new dagre.graphlib.Graph();
-  g.setGraph({ rankdir: dir, nodesep: 48, ranksep: 88, marginx: 24, marginy: 24 });
+  // `align: "UL"` pins straight chains to one column instead of letting each
+  // step drift sideways to dodge a long edge's reserved lane (the "staircase").
+  // The wider `nodesep` / `ranksep` give the right-angle edge routing room to
+  // turn without clipping a neighbour.
+  g.setGraph({ rankdir: dir, align: "UL", nodesep: 54, ranksep: 100, marginx: 24, marginy: 24 });
   g.setDefaultEdgeLabel(() => ({}));
 
   const size = new Map<string, { w: number; h: number }>();

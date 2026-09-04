@@ -1,7 +1,7 @@
 import {
   BaseEdge,
   EdgeLabelRenderer,
-  getBezierPath,
+  getSmoothStepPath,
   Position,
   type EdgeProps,
 } from "@xyflow/react";
@@ -18,7 +18,8 @@ function awayFrom(p: Position): { x: number; y: number } {
 
 /**
  * Edge renderer for FML flows.
- * - The primary edge of a node pair is a plain bezier (straight down a stack).
+ * - The primary edge of a node pair is an orthogonal (right-angle) step path,
+ *   so a flow reads like a flowchart rather than a nest of curves.
  * - Reciprocal / repeated edges leave via a side handle (chosen in
  *   `toReactFlow`) and are drawn as a wide C-curve that bows away from the
  *   nodes, so they read as a route around rather than a straight line.
@@ -48,18 +49,19 @@ export function FlowEdge({
   let labelY: number;
 
   if (index === 0 && !routed) {
-    [path, labelX, labelY] = getBezierPath({
+    [path, labelX, labelY] = getSmoothStepPath({
       sourceX,
       sourceY,
       sourcePosition,
       targetX,
       targetY,
       targetPosition,
+      borderRadius: 8,
     });
-    // Nudge the primary label back toward the source so it clears the
-    // mid-curve labels of any side-routed return edge on the same pair.
-    labelX += (sourceX - targetX) * 0.13;
-    labelY += (sourceY - targetY) * 0.13;
+    // Nudge the primary label off the mid-segment toward the source, so it
+    // clears the bowed label of any side-routed return edge on the same pair.
+    labelX += (sourceX - targetX) * 0.1;
+    labelY += (sourceY - targetY) * 0.1;
   } else {
     // Same-side handles: bow outward by a fixed amount (getBezierPath collapses
     // to a near-straight line when the handles are vertically colinear).
