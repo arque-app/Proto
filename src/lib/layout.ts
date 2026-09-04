@@ -28,27 +28,6 @@ function estimateHeight(data: FmlNodeData): number {
   return h;
 }
 
-export interface NodeRect {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  cx: number;
-  cy: number;
-}
-
-/** Bounding boxes of the laid-out nodes, from the same size estimate dagre used. */
-export function nodeRects(laid: FmlFlowNode[]): Map<string, NodeRect> {
-  const m = new Map<string, NodeRect>();
-  for (const n of laid) {
-    const w = NODE_W;
-    const h = estimateHeight(n.data);
-    const { x, y } = n.position;
-    m.set(n.id, { x, y, w, h, cx: x + w / 2, cy: y + h / 2 });
-  }
-  return m;
-}
-
 /** Run dagre and return the nodes with absolute positions + handle sides set. */
 export function layout(
   nodes: FmlFlowNode[],

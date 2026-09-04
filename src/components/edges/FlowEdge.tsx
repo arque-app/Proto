@@ -77,11 +77,6 @@ export function FlowEdge({
     offset,
   });
 
-  // `placeLabels` (in useFmlChart) picks an anchor clear of every node box;
-  // fall back to the path's own midpoint when it didn't (routed edges).
-  const lx = typeof data?.lx === "number" ? data.lx : labelX;
-  const ly = typeof data?.ly === "number" ? data.ly : labelY;
-
   return (
     <>
       <BaseEdge id={id} path={path} markerEnd={markerEnd} style={style} interactionWidth={24} />
@@ -96,7 +91,7 @@ export function FlowEdge({
                 ? "bg-accent/15 text-ink ring-1 ring-accent/60"
                 : "bg-elevated text-ink-dim ring-1 ring-line"
             }`}
-            style={{ transform: `translate(-50%, -50%) translate(${lx}px, ${ly}px)` }}
+            style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
           >
             {label}
           </div>
