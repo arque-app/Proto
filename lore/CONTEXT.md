@@ -145,6 +145,13 @@ of panning. `<ReactFlow>` was on defaults (`zoomOnScroll: true`); set
 `panOnScroll` + `zoomOnScroll={false}` + `zoomOnPinch` (kept explicit) —
 two-finger scroll pans, pinch zooms, matching Figma/Miro. Config-only; couldn't
 simulate a real trackpad gesture to verify feel, flagged that to JB.
+(14) Trace direction colour (`a3a3cc9`, deployed). JB: colour in/out edges
+differently during a badge-trace. `TRACE_IN` (blue `#5b9dd9`) / `TRACE_OUT`
+(orange `#e8935a`) added to `nodeStyle.ts`, deliberately outside the node-type
+palette so the meaning is stable regardless of node type. Edge stroke +
+arrowhead colour by `traceView.edgeRole`; the PREV/NEXT tag on the node at the
+other end matches. Verified on a plain edge and a gutter-routed back edge —
+both colour correctly.
 Still open: long rank-skipping edges get a lonely lane; big graphs sprawl wide;
 badge is a 20px target (small); trace + selection are independent; trace is
 one-hop only (full up/down-stream chain would be a small change).
