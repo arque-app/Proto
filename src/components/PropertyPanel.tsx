@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   NODE_TYPES,
   UNTYPED,
@@ -36,6 +36,8 @@ const keyLabel = "font-mono text-[10px] uppercase tracking-[0.08em] text-ink-mut
 const chip =
   "rounded-md border border-line px-1.5 py-0.5 font-mono text-[10px] text-ink-dim transition-colors hover:border-line-strong hover:text-ink";
 
+type PanelTab = "props" | "about";
+
 export function PropertyPanel({
   sel,
   doc,
@@ -48,6 +50,18 @@ export function PropertyPanel({
   const node = sel.kind === "node" ? doc.nodes.find((n) => n.id === sel.id) : undefined;
   const edge = sel.kind === "edge" ? doc.edges.find((e) => e.id === sel.id) : undefined;
   const accent = node ? kindColor(node.type) : "var(--color-accent)";
+
+  const [tab, setTab] = useState<PanelTab>("props");
+  useEffect(() => { setTab("props"); }, [sel.id]);
+
+  const inEdges = useMemo(
+    () => (node ? doc.edges.filter((e) => e.target === node.id) : []),
+    [node, doc.edges],
+  );
+  const outEdges = useMemo(
+    () => (node ? doc.edges.filter((e) => e.source === node.id) : []),
+    [node, doc.edges],
+  );
 
   return (
     <div
@@ -70,8 +84,27 @@ export function PropertyPanel({
         </button>
       </div>
 
+      {node && (
+        <div className="flex border-b border-line">
+          {(["props", "about"] as PanelTab[]).map((t) => (
+            <button
+              key={t}
+              className={`flex-1 py-2 text-[11px] font-medium capitalize transition-colors ${
+                tab === t
+                  ? "-mb-px border-b-2 border-accent text-ink"
+                  : "text-ink-mute hover:text-ink-dim"
+              }`}
+              onClick={() => setTab(t)}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto p-3">
-        {node && <NodeForm key={sel.id} node={node} onCommit={onCommitNode} />}
+        {node && tab === "props" && <NodeForm key={sel.id} node={node} onCommit={onCommitNode} />}
+        {node && tab === "about" && <AboutView node={node} inEdges={inEdges} outEdges={outEdges} />}
         {edge && (
           <EdgeForm
             key={sel.id}
@@ -84,6 +117,77 @@ export function PropertyPanel({
           <p className="text-[12px] text-ink-mute">this element is no longer in the doc</p>
         )}
       </div>
+    </div>
+  );
+}
+
+function AboutView({
+  node,
+  inEdges,
+  outEdges,
+}: {
+  node: FmlNode;
+  inEdges: FmlEdge[];
+  outEdges: FmlEdge[];
+}) {
+  const note = node.data.note;
+  const spec = nodeTypeSpec(node.type);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div>
+        <div className={keyLabel}>type</div>
+        <p className="mt-1 text-[11px] leading-snug text-ink-mute">
+          {spec ? spec.summary : "Custom type — outside the standard vocabulary."}
+        </p>
+      </div>
+
+      <div>
+        <div className={keyLabel}>description</div>
+        {note ? (
+          <p className="mt-1.5 text-[12px] leading-relaxed text-ink">{note}</p>
+        ) : (
+          <p className="mt-1.5 text-[11px] italic text-ink-mute">
+            Add a <span className="font-mono">note:</span> in the Props tab to describe this node.
+          </p>
+        )}
+      </div>
+
+      {inEdges.length > 0 && (
+        <div>
+          <div className={keyLabel}>receives from</div>
+          <div className="mt-1.5 flex flex-col gap-1.5">
+            {inEdges.map((e) => (
+              <div key={e.id} className="flex flex-col gap-0.5">
+                <span className="font-mono text-[11px] text-ink-dim">{e.source}</span>
+                {e.label && (
+                  <span className="ml-2 font-mono text-[10px] text-ink-mute">↳ {e.label}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {outEdges.length > 0 && (
+        <div>
+          <div className={keyLabel}>leads to</div>
+          <div className="mt-1.5 flex flex-col gap-1.5">
+            {outEdges.map((e) => (
+              <div key={e.id} className="flex flex-col gap-0.5">
+                {e.label && (
+                  <span className="ml-2 font-mono text-[10px] text-ink-mute">{e.label} ↴</span>
+                )}
+                <span className="font-mono text-[11px] text-ink-dim">{e.target}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {inEdges.length === 0 && outEdges.length === 0 && (
+        <p className="text-[11px] italic text-ink-mute">No edges connected to this node.</p>
+      )}
     </div>
   );
 }

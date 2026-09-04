@@ -207,6 +207,7 @@ export function App() {
             activeDoc={chart.activeDoc}
             onActiveDoc={setActiveDoc}
             nodes={chart.nodes}
+            edges={chart.doc.edges}
             stats={chart.stats}
             selection={sel}
             onSelect={setSel}
