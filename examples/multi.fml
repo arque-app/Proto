@@ -1,6 +1,6 @@
 # A file with more than one @doc. Each @doc is its own flow graph; node ids
-# are local to their doc. Step 2 will let a node in one doc point at another
-# (portal / drill-down); for now they're just separate diagrams in one file.
+# are local to their doc. A `flow` node is a portal into another doc — its
+# `doc:` key names the target, and double-clicking it in the viewer drills in.
 
 @doc main
 

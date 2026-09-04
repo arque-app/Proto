@@ -5,7 +5,7 @@ You write text describing **what connects to what**; a parser turns it into
 `{ nodes, edges }` and a canvas renders it as a live flowchart. Positions are
 automatic — you never place boxes by hand.
 
-This document is the complete **v0.1** syntax. An LLM agent can read this and
+This document is the complete **v0.2** syntax. An LLM agent can read this and
 produce valid `.fml` for an existing app.
 
 ---
@@ -26,12 +26,16 @@ A file is a list of **sections**. Each section header sits at column 0 and start
 
 | Section | Purpose | Required |
 |---|---|---|
-| `@meta` | file-level info (title, etc.) | no |
+| `@meta` | file-level info: `title`, `base` (the API root) | no |
 | `@nodes` | declare every box | yes (in practice) |
 | `@node <id> { … }` | attach details to one box; repeatable | no |
 | `@flow` | the arrows | yes |
+| `@doc <name>` | start another flow in the same file | no |
+| `@fof <path> as <name>` | pull another `.fml` file in as a flow | no |
 
-Section **order does not matter**. Blank lines and comments are ignored.
+Section **order does not matter**. Blank lines and comments are ignored. (Section
+order is free *within* a doc; `@doc` / `@fof` split the file into docs — see
+[`@doc`](#doc-name--more-than-one-flow-in-a-file) and [`@fof`](#fof-path-as-name--split-flows-across-files).)
 
 ### Comments
 
@@ -41,6 +45,26 @@ LoginScreen = page   # also a comment (after whitespace)
 ```
 
 `#` starts a comment at the start of a line or after a space/tab.
+
+---
+
+## `@meta` — file-level info
+
+```
+@meta
+  title: MyApp — Auth + Cart
+  base: https://api.example.com
+```
+
+- `key: value`, indented, one per line — same shape as a `@node` body.
+- **`title:`** names the file (shown in the viewer).
+- **`base:`** is the API root every `api` node's `path:` hangs off. With
+  `base: https://api.example.com` and a node's `path: /auth/login`, the
+  executable form of that call is `https://api.example.com/auth/login`. A node
+  that carries a full `url:` instead ignores `base`.
+- Any other key is allowed and carried through untouched; nothing else is
+  interpreted today.
+- With multiple `@doc`s, each doc has its own `@meta`.
 
 ---
 
@@ -258,9 +282,102 @@ Works on grouped arrows too:
   arrow. `note:` is only a convention — any key works, same as `@node`.
 - **No `#` inside a note value.** `#` after a space starts a comment and the rest
   of the line is dropped — write `incident 114`, not `incident #114`.
-- v0.2: edge notes are parsed into `edges[].data` (visible in `demo.ts --json`).
-  They are **not drawn on the canvas yet** — a custom edge component is a planned
-  follow-up.
+- Edge notes are parsed into `edges[].data` and are **editable in the property
+  panel** (click the arrow). They also show in `demo.ts --json`. The note text is
+  not yet painted on the edge line itself.
+
+---
+
+## `@doc <name>` — more than one flow in a file
+
+A real app is several journeys. Give each its own `@doc`:
+
+```
+@doc main
+
+@nodes
+  Home     = page
+  Checkout = flow
+
+@node Checkout { doc: checkout }
+
+@flow
+  Home -cart> Checkout
+
+@doc checkout
+
+@nodes
+  Cart    = page
+  payApi  = api
+  Receipt = page
+
+@flow
+  Cart -pay> payApi
+  payApi -201> Receipt
+```
+
+- `@doc <name>` at column 0 starts a doc. `<name>` is `[A-Za-z0-9_]`.
+- Everything before the first `@doc` — or the whole file, if there is no `@doc` —
+  is one doc called **`main`**.
+- Each doc is a **separate graph**: its own `@meta`, `@nodes`, `@flow`. **Node ids
+  are doc-local** — `Cart` in one doc and `Cart` in another are two different
+  boxes.
+- **Arrows cannot cross docs.** `@flow` inside the `checkout` doc can only wire
+  `checkout`'s own nodes. To connect one journey to another, use a portal ↓.
+
+### Portals — a `flow` node standing for another doc
+
+A `flow` node stands in for a whole doc. Its `doc:` key names the target:
+
+```
+@nodes
+  Checkout = flow
+@node Checkout {
+  doc: checkout      # matches a @doc name (or an @fof name — see below)
+}
+@flow
+  Home -cart> Checkout
+```
+
+In the viewer, **double-click the portal** to open the doc it points at. If
+`doc:` names nothing that exists, the portal warns.
+
+---
+
+## `@fof <path> as <name>` — split flows across files
+
+`@fof` ("flow of file") pulls another `.fml` file in as one more doc — one file
+per journey, assembled at the top of the entry file:
+
+```
+# app.fml — the entry file
+@fof ./auth as auth
+@fof ./checkout as checkout
+
+@nodes
+  Home     = page
+  Auth     = flow
+  Checkout = flow
+
+@node Auth      { doc: auth }
+@node Checkout  { doc: checkout }
+
+@flow
+  Home -sign in> Auth
+  Home -cart> Checkout
+```
+
+- `@fof <path> as <name>` sits at column 0, before the `@nodes` that use it.
+- **The path has no extension** — it is always `.fml`. `./auth` loads `auth.fml`
+  from the same folder as the file doing the importing.
+- **`as <name>` is required.** That name is what a `flow` node's `doc:` points at,
+  and what the imported file's flow is called.
+- `@fof` **nests** — an imported file may `@fof` further files. A circular import
+  is caught and reported, not followed.
+- If the imported file has several `@doc`s, the first becomes `<name>` and the
+  rest come along under their own names.
+- In the viewer, drop the whole set of files in at once (multi-select the files,
+  or drag them in together) and every `@fof` resolves.
 
 ---
 
@@ -377,6 +494,12 @@ Works on grouped arrows too:
 | `unknown directive: "@…"` | only `@meta`, `@nodes`, `@node`, `@flow`, `@doc`, `@fof` are valid |
 | `unknown node type "X" for "Y"` | use one of the five standard types, or accept the warning |
 | `api "X" is missing "method", "path"` | strict-mode hint — add the keys, or turn strict off while sketching |
+| `@doc needs a name matching [A-Za-z0-9_]` | `@doc My Flow` → `@doc myFlow` |
+| `@doc "X" repeated — merging` | two `@doc X` headers — rename one |
+| `@fof needs "@fof <path> [as <name>]"` | malformed `@fof` line |
+| `@fof "X" — add "as <name>"` | `@fof ./auth` → `@fof ./auth as auth` |
+| `cannot resolve @fof "X"` | that file isn't in the workspace / folder |
+| `circular @fof "X"` | two files `@fof` each other — break the loop |
 
 ---
 
@@ -443,3 +566,6 @@ What the viewer gives you beyond the picture:
 - [ ] Each arrow has exactly one `>`
 - [ ] Every edge `{ … }` note block opens on the arrow line and closes with `}`
 - [ ] No `#` inside a `note:` value (it starts a comment)
+- [ ] Every `flow` node has a `doc:` matching a `@doc` or `@fof` name
+- [ ] No arrow crosses between `@doc`s — a `flow` portal does that instead
+- [ ] Every `@fof` line has `as <name>` and a path with no extension
