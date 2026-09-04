@@ -97,6 +97,20 @@ into empty space and stacked. Back to `getSmoothStepPath`'s own label point;
 kept the `max-w-[150px]` cap + the no-fan-shift-on-routed fix. Label-on-node is
 back to "small capped chip on the path" — acceptable, not a banner. A bounded
 (~24px) perpendicular nudge is the careful version if it comes up again.
+(9) Self-loop routing (`a8b7868`, deployed). The `↻`/`U` artifacts JB kept
+seeing (near `historyCompleteCheck`, `ResyncPlaid` in his Plaid graph) were
+self-referencing edges (`X -label> X`) — they got the default bottom→top
+handles of their *own* card, a zero-distance path that folded flat and put the
+label dead-center on the title (screenshot showed the label text literally
+interleaved with the node name). `toReactFlow` now detects `source === target`
+and routes it right→top instead (cycling through 4 side-pairs if a node has
+more than one self edge); `FlowEdge` gives self-loops a bigger offset (40),
+skips the fan shift. Verified with a constructed self-loop doc: the loop bows
+out beside the card and back in above it, label included, clear of the title.
+Also this round: `placeLabels` (item 8) was reverted one turn after shipping —
+it anchored on the straight centre-to-centre line while paths are orthogonal,
+so on a dense graph it flung labels away from their edges. Back to
+`getSmoothStepPath`'s own label point; kept the width cap.
 Still open: long rank-skipping edges get a lonely lane; big graphs sprawl.
 Still open: long rank-skipping edges get a lonely lane; big graphs sprawl wide;
 badge is a 20px target (small); trace + selection are independent; trace is
