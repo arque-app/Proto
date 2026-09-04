@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { forceCollide, forceManyBody, forceSimulation, forceX, forceY, type Simulation } from "d3-force";
+import { forceCollide, forceManyBody, forceSimulation, type Simulation } from "d3-force";
 import { nodeSize } from "../lib/layout.ts";
-import type { FmlFlowNode, LayoutDirection } from "../types/chart.ts";
+import type { FmlFlowNode } from "../types/chart.ts";
 
 interface SimNode {
   id: string;
@@ -13,18 +13,10 @@ interface SimNode {
   fy?: number | null;
   w: number;
   h: number;
-  /** Dagre's own position for this node — what "repel, but stay in order" pulls back toward. */
-  anchorX: number;
-  anchorY: number;
 }
 
 /** Minimum gap kept between two cards, beyond their own footprint. */
 const PADDING = 16;
-/** How hard a node is pulled back toward its dagre rank — the read-order axis. */
-const RANK_PULL = 0.55;
-/** How hard a node is pulled back toward its dagre column — the free axis. Weak,
- *  so collision/repulsion still has room to spread nodes out sideways. */
-const DRIFT_PULL = 0.08;
 
 /** Circular collision radius from a rectangular card — conservative (never
  *  under-estimates), so two cards can never actually overlap. */
@@ -33,69 +25,36 @@ function radius(n: SimNode): number {
 }
 
 export interface ForceLayout {
-  /** Live centre positions, keyed by node id. Empty until the first tick lands. */
+  /** Live centre-position overrides, keyed by node id. Empty at rest — the
+   *  graph is exactly dagre's own static layout until a drag is in progress. */
   positions: Map<string, { x: number; y: number }>;
+  /** Start a push session, seeded from every node's current on-screen spot. */
+  onDragStart: (baseNodes: FmlFlowNode[]) => void;
   /** Pin a node under the pointer and wake the simulation so neighbours react. */
   onDrag: (id: string, centerX: number, centerY: number) => void;
-  /** Release the pin — the node keeps its dropped spot but is free to be pushed again. */
-  onDragEnd: (id: string) => void;
+  /** Freeze immediately where things are — no lingering settle afterward. */
+  onDragEnd: () => void;
+  /** Drop back to dagre's own static layout — call on any structural change
+   *  (new parse, doc switch) so a stale push never lingers past its doc. */
+  reset: () => void;
 }
 
 /**
- * A light physics pass layered on dagre's rank layout — nodes repel each
- * other with a minimum-distance threshold (never overlap), gently spread out
- * when crowded, and react live while dragging, the way a force-directed graph
- * does. Dagre still decides *structure* (rank, back-edge routing, handle
- * sides, the step badge order); this only refines the pixel spacing, pulled
- * back toward dagre's own position so the flow keeps reading top to bottom.
+ * Repulsion that only exists *during* a drag — at rest this changes nothing:
+ * the graph is exactly dagre's static rank layout, no idle motion, no settle
+ * animation. Drag a node and the simulation wakes up (collision + light
+ * repulsion only, no pull back to any "home" position) so crowded neighbours
+ * push out of the way live; release it and the simulation is stopped on the
+ * spot, freezing whatever the current spacing is until the next drag.
  *
- * Existing nodes keep their current (settled or hand-dragged) spot across an
- * unrelated edit — only their anchor and size refresh — so editing a node's
- * text doesn't reset the whole graph's layout. New nodes seed in at their
- * dagre position and settle from there; nodes no longer in the doc drop out.
+ * Dagre still decides *structure* — rank, back-edge routing, handle sides,
+ * the step badge order — this never touches any of that, only final pixel
+ * position while a push is actually happening.
  */
-export function useForceLayout(nodes: FmlFlowNode[], dir: LayoutDirection): ForceLayout {
+export function useForceLayout(): ForceLayout {
   const [positions, setPositions] = useState<Map<string, { x: number; y: number }>>(new Map());
   const simRef = useRef<Simulation<SimNode, undefined> | null>(null);
   const byId = useRef<Map<string, SimNode>>(new Map());
-
-  useEffect(() => {
-    const next = new Map<string, SimNode>();
-    for (const n of nodes) {
-      const { w, h } = nodeSize(n.data);
-      const anchorX = n.position.x + w / 2;
-      const anchorY = n.position.y + h / 2;
-      const prev = byId.current.get(n.id);
-      next.set(
-        n.id,
-        prev
-          ? { ...prev, w, h, anchorX, anchorY }
-          : { id: n.id, x: anchorX, y: anchorY, w, h, anchorX, anchorY },
-      );
-    }
-    byId.current = next;
-    const simNodes = [...next.values()];
-
-    if (!simRef.current) {
-      simRef.current = forceSimulation<SimNode>().velocityDecay(0.45).on("tick", () => {
-        const p = new Map<string, { x: number; y: number }>();
-        for (const n of byId.current.values()) p.set(n.id, { x: n.x, y: n.y });
-        setPositions(p);
-      });
-    }
-
-    const xStrength = dir === "LR" ? RANK_PULL : DRIFT_PULL;
-    const yStrength = dir === "LR" ? DRIFT_PULL : RANK_PULL;
-
-    simRef.current
-      .nodes(simNodes)
-      .force("collide", forceCollide<SimNode>(radius).strength(1))
-      .force("charge", forceManyBody<SimNode>().strength(-60))
-      .force("x", forceX<SimNode>((n) => n.anchorX).strength(xStrength))
-      .force("y", forceY<SimNode>((n) => n.anchorY).strength(yStrength))
-      .alpha(0.6)
-      .restart();
-  }, [nodes, dir]);
 
   useEffect(() => {
     return () => {
@@ -103,28 +62,63 @@ export function useForceLayout(nodes: FmlFlowNode[], dir: LayoutDirection): Forc
     };
   }, []);
 
+  const ensureSim = (): Simulation<SimNode, undefined> => {
+    if (simRef.current) return simRef.current;
+    const sim = forceSimulation<SimNode>().velocityDecay(0.5).on("tick", () => {
+      const p = new Map<string, { x: number; y: number }>();
+      for (const n of byId.current.values()) p.set(n.id, { x: n.x, y: n.y });
+      setPositions(p);
+    });
+    simRef.current = sim;
+    return sim;
+  };
+
+  const onDragStart = (baseNodes: FmlFlowNode[]) => {
+    // Seed from wherever each node is *right now* — the frozen spot left by
+    // an earlier push this session if there is one, otherwise dagre's own
+    // position — never a stale/reset position, so starting a second drag
+    // doesn't visually snap everything back first.
+    const seeded = new Map<string, SimNode>();
+    for (const n of baseNodes) {
+      const { w, h } = nodeSize(n.data);
+      const cur = positions.get(n.id);
+      const x = cur ? cur.x : n.position.x + w / 2;
+      const y = cur ? cur.y : n.position.y + h / 2;
+      seeded.set(n.id, { id: n.id, x, y, w, h });
+    }
+    byId.current = seeded;
+
+    const sim = ensureSim();
+    sim
+      .nodes([...seeded.values()])
+      .force("collide", forceCollide<SimNode>(radius).strength(1))
+      .force("charge", forceManyBody<SimNode>().strength(-40))
+      .alpha(0.5)
+      .restart();
+  };
+
   const onDrag = (id: string, centerX: number, centerY: number) => {
     const n = byId.current.get(id);
     if (!n) return;
     n.fx = centerX;
     n.fy = centerY;
-    simRef.current?.alpha(0.3).restart();
+    simRef.current?.alpha(0.4).restart();
   };
 
-  const onDragEnd = (id: string) => {
-    const n = byId.current.get(id);
-    if (!n) return;
-    // Where it was dropped becomes its new "home" — the rank pull should hold
-    // it there, not drag it back toward dagre's original guess. (The chart's
-    // own re-layout picks this up as the real anchor next time it re-parses,
-    // via the saved position in nodePositions.ts; this just keeps the running
-    // simulation from fighting the drop in the meantime.)
-    n.anchorX = n.fx ?? n.x;
-    n.anchorY = n.fy ?? n.y;
-    n.fx = null;
-    n.fy = null;
-    simRef.current?.alpha(0.15).restart();
+  const onDragEnd = () => {
+    for (const n of byId.current.values()) {
+      n.fx = null;
+      n.fy = null;
+    }
+    // Freeze right where things are — no continued settle, no snap-back.
+    simRef.current?.stop();
   };
 
-  return { positions, onDrag, onDragEnd };
+  const reset = () => {
+    simRef.current?.stop();
+    byId.current = new Map();
+    setPositions((prev) => (prev.size === 0 ? prev : new Map()));
+  };
+
+  return { positions, onDragStart, onDrag, onDragEnd, reset };
 }

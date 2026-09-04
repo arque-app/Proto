@@ -16,7 +16,7 @@ import { useForceLayout } from "../hooks/useForceLayout.ts";
 import { nodeSize } from "../lib/layout.ts";
 import { savePositions } from "../lib/nodePositions.ts";
 import { TRACE_IN, TRACE_OUT } from "../lib/nodeStyle.ts";
-import type { FmlFlowNode, FmlNodeData, LayoutDirection } from "../types/chart.ts";
+import type { FmlFlowNode, FmlNodeData } from "../types/chart.ts";
 import type { Selection } from "./PropertyPanel.tsx";
 
 const nodeTypes = { fml: FmlNode };
@@ -76,21 +76,24 @@ export function FlowCanvas({
   const [nodes, setNodes, onNodesChange] = useNodesState<FmlFlowNode>(chartNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(chartEdges);
 
-  // Re-seed from the parsed chart only when the source / layout direction changes.
-  // A drag mutates local state via onNodesChange and never touches chartNodes,
-  // so hand-placed nodes stay where you drop them.
+  // Repulsion that only exists *during* a drag — see useForceLayout. The id
+  // currently being dragged is tracked outside React state (a ref, read fresh
+  // each render) so its position always comes straight from React Flow's own
+  // drag math, never a one-tick-stale physics position.
+  const force = useForceLayout();
+  const draggingId = useRef<string | null>(null);
+
+  // Re-seed from the parsed chart only when the source / layout direction
+  // changes. A drag mutates local state via onNodesChange and never touches
+  // chartNodes, so hand-placed nodes stay where you drop them. Any structural
+  // change also drops the graph back to a fully static layout — no lingering
+  // push from a previous drag survives into a different doc or edit.
   useEffect(() => {
     setNodes(chartNodes);
     setEdges(chartEdges);
+    force.reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chartNodes, chartEdges, setNodes, setEdges]);
-
-  // Repulsion layered on dagre's rank layout — see useForceLayout for the why.
-  // The id currently being dragged is tracked outside React state (a ref, read
-  // fresh each render) so its position always comes straight from React Flow's
-  // own drag math, never a one-tick-stale physics position.
-  const dir: LayoutDirection = chartNodes[0]?.data.dir ?? "TB";
-  const force = useForceLayout(chartNodes, dir);
-  const draggingId = useRef<string | null>(null);
 
   // Auto-fit only when the graph itself changes (new file / doc / direction) —
   // never when a panel opens. `padding` changes on every selection, so it is
@@ -217,6 +220,11 @@ export function FlowCanvas({
           onSelect(null);
           onTrace(null);
         }}
+        onNodeDragStart={() => {
+          // Seed the push session from every node's current on-screen spot —
+          // at rest this is just dagre's own layout, unchanged.
+          force.onDragStart(nodes);
+        }}
         onNodeDrag={(_, node) => {
           draggingId.current = node.id;
           const { w, h } = nodeSize(node.data);
@@ -224,15 +232,16 @@ export function FlowCanvas({
         }}
         onNodeDragStop={(_, node, draggedNodes) => {
           draggingId.current = null;
+          // Freeze exactly where the push left things — no settle, no snap-back.
+          force.onDragEnd();
           // Positions never go into the .fml — save the drop point outside it,
           // right away, so it survives a doc switch instead of resetting to
-          // auto-layout. Covers a multi-node drag too.
+          // auto-layout. Covers a multi-node drag too. Only the node(s) you
+          // actually dragged are remembered — a neighbour that got shoved out
+          // of the way reverts to dagre's own spot next time the doc parses.
           const moved = draggedNodes && draggedNodes.length > 0 ? draggedNodes : [node];
           const positions: Record<string, { x: number; y: number }> = {};
-          for (const n of moved) {
-            force.onDragEnd(n.id);
-            positions[n.id] = n.position;
-          }
+          for (const n of moved) positions[n.id] = n.position;
           savePositions(posDocKey, positions);
         }}
         nodeTypes={nodeTypes}

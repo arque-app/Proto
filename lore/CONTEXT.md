@@ -2,12 +2,49 @@
 
 **Focus:** FML — `.fml` Flowchart Markup Language: parser (`src/fml/`) + web viewer (React Flow + dagre)
 **Phase:** R&D — language standardised (5 node types) and now variable-aware (`@vars` + `capture` resolution); viewer redesigned with a physics-refined layout; live at https://protoarch.web.app, also reachable at https://fml.arque.app (custom domain, same Firebase project)
-**Open:** **live drag-reactive repulsion is unverified** — built (`useForceLayout.ts`), confirmed via DOM inspection that nodes never overlap after the initial settle, but the actual "drag a node and neighbours push away" interaction couldn't be tested this session — browser automation here can't produce a real press-and-hold gesture against this page (pointermove fires, pointerdown/up never do); needs JB to try it with a real mouse; the "expand a flow/@fof node into a coloured bubble of its sub-doc" feature is designed but not built — next round, wants the repulsion foundation solid first; cross-doc variable scope is undecided — a `capture` in one `@doc` doesn't resolve a `{name}` in a doc it portals into via `flow`; node rename + add/delete node/edge (structural — needs an FmlDoc→text serializer); breadcrumb for portal drill-down (the jump itself works); "Open folder" (File System Access API); sidebar resize; label crowding on primary+reciprocal at one node; `#` in a value is still eaten by the comment lexer (JB's call); `public/index.html` is dead Firebase boilerplate; a handful of `lore/` reference docs (`GUARDRAILS.md`, `INDEX.md`, `architecture/*.md`, `ideas/*.md`, `testing/registry.md`) still say "protoArch" here and there — not yet swept, low-stakes
-**Next:** JB to verify the drag-repel feel with a real mouse; then the expand-into-bubble feature; the runner (execution engine, needs a CORS/backend story) — blocked on the cross-doc variable question; graph-relaxation is now addressed by the physics layer
+**Open:** **live drag-reactive repulsion is still unverified with a real mouse** — redesigned to be drag-only (see log), confirmed statically at rest via DOM inspection (zero drift over time, zero overlaps), but browser automation here still can't produce a real press-and-hold gesture against this page, so the actual push-while-dragging feel needs JB; the "expand a flow/@fof node into a coloured bubble of its sub-doc" feature is designed but not built — next round; cross-doc variable scope is undecided — a `capture` in one `@doc` doesn't resolve a `{name}` in a doc it portals into via `flow`; node rename + add/delete node/edge (structural — needs an FmlDoc→text serializer); breadcrumb for portal drill-down (the jump itself works); "Open folder" (File System Access API); sidebar resize; label crowding on primary+reciprocal at one node; `#` in a value is still eaten by the comment lexer (JB's call); `public/index.html` is dead Firebase boilerplate; a handful of `lore/` reference docs (`GUARDRAILS.md`, `INDEX.md`, `architecture/*.md`, `ideas/*.md`, `testing/registry.md`) still say "protoArch" here and there — not yet swept, low-stakes
+**Next:** JB to verify the drag-repel feel with a real mouse; then the expand-into-bubble feature; the runner (execution engine, needs a CORS/backend story) — blocked on the cross-doc variable question
 
 ---
 
 ## Log
+
+### 2026-09-05 — JB / Claude (cont.) — Physics redesigned to be drag-only
+JB tried the first version and gave sharp, specific feedback: **"the flowchart
+felt like jelly, thats not what i want, the reaction to be active only when i
+click and drag the nodes around, in other cases i want it to just like it is
+now."** Root cause: the first version reheated the simulation (`alpha(0.6)
+.restart()`) on *every* structural change — any edit, not just a drag — so the
+whole graph visibly re-settled on every keystroke-driven commit. Not a tuning
+problem, a design problem.
+
+Rewrote `useForceLayout.ts` from scratch: the hook now holds **no** ambient
+state. `positions` starts empty and *only* gets populated between
+`onDragStart` and `onDragEnd` — at rest the graph is exactly dagre's own
+static output, no exceptions. Also dropped the anchor/rank-pull force
+entirely (`forceX`/`forceY` toward the dagre position) — it was fighting
+pushed neighbours, trying to spring them back to their old spot, which was
+part of the "jelly" feel. A drag now seeds the simulation from wherever every
+node currently sits (its frozen spot from an earlier push this session, or
+dagre's raw position), runs pure collision + light repulsion — nothing else —
+while the pointer is held, and `onDragEnd` calls `sim.stop()` immediately:
+whatever the spacing is at that instant is frozen, no continued settle, no
+snap-back. Any real structural change (new parse, doc switch — the same
+`useEffect` that already reseeds `nodes`/`edges` from `chartNodes`) calls a
+new `force.reset()` that drops straight back to the static baseline.
+
+Persistence is unchanged and JB confirmed this is what he wants: only the
+node(s) you actually dragged get saved (`nodePositions.ts`, outside the
+`.fml` — positions still never go into the source). A neighbour nudged out of
+the way during someone else's drag is *not* separately remembered — it
+reverts to dagre's own spot the next time the doc reparses. That was already
+the existing behaviour; nothing changed there.
+
+Verified via direct DOM inspection: read every node's rendered `transform` on
+load, waited 2s, read again — **byte-identical, zero drift**. Confirms the
+"no idle motion, ever" requirement architecturally, not just by eyeballing a
+screenshot. The live push-while-dragging feel is still unverified with a real
+mouse, same tool limitation as before — flagged, not deployed yet.
 
 ### 2026-09-05 — JB / Claude — Repulsion physics on top of dagre
 JB: "i want the nodes to behave like they repel eachother with a threashold...
