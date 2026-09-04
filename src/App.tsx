@@ -6,7 +6,6 @@ import { Sidebar } from "./components/Sidebar.tsx";
 import { Toolbar } from "./components/Toolbar.tsx";
 import { SourcePanel } from "./components/SourcePanel.tsx";
 import { PropertyPanel, type Selection } from "./components/PropertyPanel.tsx";
-import { WalkthroughPanel } from "./components/WalkthroughPanel.tsx";
 import { useFmlChart } from "./hooks/useFmlChart.ts";
 import { useLocalStorage } from "./hooks/useLocalStorage.ts";
 import { SAMPLE_FML } from "./lib/sample.ts";
@@ -83,12 +82,6 @@ export function App() {
     },
     [setWs],
   );
-
-  const reset = useCallback(() => {
-    setWs(sampleWorkspace());
-    setActiveDoc(null);
-    setSel(null);
-  }, [setWs]);
 
   const setEntry = useCallback(
     (name: string) => {
@@ -213,6 +206,7 @@ export function App() {
             activeDoc={chart.activeDoc}
             onActiveDoc={setActiveDoc}
             nodes={chart.nodes}
+            edges={chart.doc.edges}
             stats={chart.stats}
             selection={sel}
             onSelect={setSel}
@@ -237,7 +231,6 @@ export function App() {
             onAddFiles={addFiles}
             entry={ws.entry}
             entrySource={ws.files[ws.entry] ?? ""}
-            onReset={reset}
             sidebarOpen={sidebarOpen}
             onToggleSidebar={() => setSidebarOpen(true)}
             errors={chart.errors}
@@ -265,11 +258,6 @@ export function App() {
             />
           )}
 
-          <WalkthroughPanel
-            nodes={chart.nodes}
-            edges={chart.doc.edges}
-            inset={(sel ? PROPERTY_W : 0) + (sourceOpen ? SOURCE_W : 0)}
-          />
         </div>
       </div>
     </ReactFlowProvider>

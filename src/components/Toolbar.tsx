@@ -9,7 +9,6 @@ interface Props {
   /** Current entry file, for the download button. */
   entry: string;
   entrySource: string;
-  onReset: () => void;
   sidebarOpen: boolean;
   onToggleSidebar: () => void;
   errors: FmlIssue[];
@@ -105,9 +104,6 @@ export function Toolbar(props: Props) {
 
       <button className={`${btn} ${props.sourceOpen ? on : idle}`} onClick={props.onToggleSource}>
         Source
-      </button>
-      <button className={`${btn} ${idle}`} onClick={props.onReset} title="Replace the workspace with the sample file">
-        Reset
       </button>
 
       {issueCount > 0 && (

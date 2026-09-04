@@ -1,6 +1,6 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useReactFlow } from "@xyflow/react";
-import type { FmlStats } from "../fml/index.ts";
+import type { FmlEdge, FmlStats } from "../fml/index.ts";
 import type { FmlFlowNode } from "../types/chart.ts";
 import { kindColor, kindPlural } from "../lib/nodeStyle.ts";
 import { Glyph } from "./Glyph.tsx";
@@ -16,10 +16,44 @@ interface Props {
   onActiveDoc: (name: string) => void;
   /** Laid-out nodes of the active doc. */
   nodes: FmlFlowNode[];
+  /** Parsed edges of the active doc — for the walkthrough. */
+  edges: FmlEdge[];
   stats: FmlStats;
   selection: Selection | null;
   onSelect: (sel: Selection | null) => void;
   onCollapse: () => void;
+}
+
+interface WalkthroughStep {
+  source: string;
+  label: string;
+  target: string;
+  isBack: boolean;
+}
+
+/**
+ * BFS-trace the active doc from its roots into a flat step list. A step whose
+ * target was already seen is a loop back and is marked, not followed.
+ */
+function buildWalkthrough(nodes: FmlFlowNode[], edges: FmlEdge[]): WalkthroughStep[] {
+  const hasInbound = new Set(edges.map((e) => e.target));
+  const roots = nodes.filter((n) => !hasInbound.has(n.id)).map((n) => n.id);
+  const queue = roots.length > 0 ? [...roots] : nodes.slice(0, 1).map((n) => n.id);
+
+  const steps: WalkthroughStep[] = [];
+  const visited = new Set<string>();
+
+  while (queue.length > 0) {
+    const id = queue.shift()!;
+    if (visited.has(id)) continue;
+    visited.add(id);
+    for (const e of edges.filter((e) => e.source === id)) {
+      const isBack = visited.has(e.target);
+      steps.push({ source: e.source, label: e.label, target: e.target, isBack });
+      if (!isBack) queue.push(e.target);
+    }
+  }
+  return steps;
 }
 
 /** Standard types first, in reading order; anything else falls to the bottom. */
@@ -56,12 +90,15 @@ export function Sidebar({
   activeDoc,
   onActiveDoc,
   nodes,
+  edges,
   stats,
   selection,
   onSelect,
   onCollapse,
 }: Props) {
   const { setCenter, getNode } = useReactFlow();
+  const [walkOpen, setWalkOpen] = useState(true);
+  const walkthrough = useMemo(() => buildWalkthrough(nodes, edges), [nodes, edges]);
 
   const pick = (id: string) => {
     onSelect({ kind: "node", id });
@@ -169,11 +206,52 @@ export function Sidebar({
         ))}
       </Section>
 
-      <div className="mt-auto px-3.5 py-3 font-mono text-[10px] leading-relaxed text-ink-mute">
-        {stats.nodes} nodes · {stats.edges} edges
-        <br />
-        {stats.flowCount} flow{stats.flowCount === 1 ? "" : "s"}
-        {stats.unwired.length > 0 && ` · ${stats.unwired.length} unwired`}
+      <div className="mt-auto">
+        {walkthrough.length > 0 && (
+          <div className="border-t border-line px-2.5 py-3">
+            <button
+              className="flex w-full items-center gap-1.5 px-1 text-[10px] font-semibold uppercase tracking-[0.09em] text-ink-mute transition-colors hover:text-ink-dim"
+              onClick={() => setWalkOpen((v) => !v)}
+            >
+              <span className="flex-1 text-left">
+                Walkthrough · {walkthrough.length} step{walkthrough.length === 1 ? "" : "s"}
+              </span>
+              <span aria-hidden className="text-[10px] leading-none">
+                {walkOpen ? "▾" : "▸"}
+              </span>
+            </button>
+            {walkOpen && (
+              <div className="mt-2 flex max-h-[42vh] flex-col gap-1.5 overflow-y-auto px-1">
+                {walkthrough.map((step, i) => (
+                  <div key={i} className="flex flex-col gap-0.5">
+                    <div className="flex items-center gap-1 font-mono text-[10px]">
+                      <span className={step.isBack ? "text-ink-mute/60" : "text-ink-dim"}>
+                        {step.source}
+                      </span>
+                      <span className="text-ink-mute/50">→</span>
+                      <span className={step.isBack ? "text-ink-mute/60" : "text-ink-dim"}>
+                        {step.target}
+                      </span>
+                      {step.isBack && (
+                        <span className="ml-auto text-[9px] text-ink-mute/50">↩ loop</span>
+                      )}
+                    </div>
+                    {step.label && (
+                      <span className="ml-2 font-mono text-[9px] text-ink-mute/70">{step.label}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="border-t border-line px-3.5 py-3 font-mono text-[10px] leading-relaxed text-ink-mute">
+          {stats.nodes} nodes · {stats.edges} edges
+          <br />
+          {stats.flowCount} flow{stats.flowCount === 1 ? "" : "s"}
+          {stats.unwired.length > 0 && ` · ${stats.unwired.length} unwired`}
+        </div>
       </div>
     </aside>
   );

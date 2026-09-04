@@ -82,7 +82,8 @@ export function FlowEdge({
       {label ? (
         <EdgeLabelRenderer>
           <div
-            className={`pointer-events-none absolute z-[6] rounded-md px-1.5 py-0.5 font-mono text-[10px] font-medium shadow-[0_1px_6px_rgba(0,0,0,0.55)] transition-colors ${
+            title={typeof label === "string" ? label : undefined}
+            className={`pointer-events-none absolute z-[6] max-w-[150px] truncate rounded-md px-1.5 py-0.5 font-mono text-[10px] font-medium shadow-[0_1px_6px_rgba(0,0,0,0.55)] transition-colors ${
               data?.traceDim === true ? "opacity-20" : ""
             } ${
               selected
