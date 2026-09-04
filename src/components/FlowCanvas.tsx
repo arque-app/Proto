@@ -205,6 +205,11 @@ export function FlowCanvas({
         edgesReconnectable={false}
         elementsSelectable
         minZoom={0.2}
+        // Two-finger trackpad scroll pans (like Figma/Miro) instead of
+        // zooming; pinch still zooms.
+        panOnScroll
+        zoomOnScroll={false}
+        zoomOnPinch
         proOptions={{ hideAttribution: true }}
         className="bg-bg"
       >
