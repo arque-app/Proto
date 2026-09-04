@@ -6,6 +6,7 @@ import { Sidebar } from "./components/Sidebar.tsx";
 import { Toolbar } from "./components/Toolbar.tsx";
 import { SourcePanel } from "./components/SourcePanel.tsx";
 import { PropertyPanel, type Selection } from "./components/PropertyPanel.tsx";
+import { WalkthroughPanel } from "./components/WalkthroughPanel.tsx";
 import { useFmlChart } from "./hooks/useFmlChart.ts";
 import { useLocalStorage } from "./hooks/useLocalStorage.ts";
 import { SAMPLE_FML } from "./lib/sample.ts";
@@ -206,7 +207,6 @@ export function App() {
             activeDoc={chart.activeDoc}
             onActiveDoc={setActiveDoc}
             nodes={chart.nodes}
-            edges={chart.doc.edges}
             stats={chart.stats}
             selection={sel}
             onSelect={setSel}
@@ -258,6 +258,7 @@ export function App() {
             />
           )}
 
+          <WalkthroughPanel nodes={chart.nodes} edges={chart.doc.edges} />
         </div>
       </div>
     </ReactFlowProvider>
