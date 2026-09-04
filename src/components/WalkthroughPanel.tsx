@@ -39,9 +39,12 @@ function buildWalkthrough(nodes: FmlFlowNode[], edges: FmlEdge[]): WalkthroughSt
 export function WalkthroughPanel({
   nodes,
   edges,
+  inset = 0,
 }: {
   nodes: FmlFlowNode[];
   edges: FmlEdge[];
+  /** Px of docked panel on the right, so the card never slides underneath. */
+  inset?: number;
 }) {
   const steps = useMemo(() => buildWalkthrough(nodes, edges), [nodes, edges]);
   if (steps.length === 0) return null;
@@ -49,7 +52,8 @@ export function WalkthroughPanel({
   return (
     <DockPanel
       id="walkthrough"
-      side="left"
+      side="right"
+      inset={inset}
       title={`Walkthrough · ${steps.length} step${steps.length === 1 ? "" : "s"}`}
     >
       <div className="flex flex-col gap-1.5 px-1">

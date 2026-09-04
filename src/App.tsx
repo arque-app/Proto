@@ -5,7 +5,6 @@ import { FlowCanvas, fitPadding } from "./components/FlowCanvas.tsx";
 import { Sidebar } from "./components/Sidebar.tsx";
 import { Toolbar } from "./components/Toolbar.tsx";
 import { SourcePanel } from "./components/SourcePanel.tsx";
-import { IssueList } from "./components/IssueList.tsx";
 import { PropertyPanel, type Selection } from "./components/PropertyPanel.tsx";
 import { WalkthroughPanel } from "./components/WalkthroughPanel.tsx";
 import { useFmlChart } from "./hooks/useFmlChart.ts";
@@ -249,8 +248,8 @@ export function App() {
             sidebarOpen={sidebarOpen}
             onToggleSidebar={() => setSidebarOpen(true)}
             padding={padding}
-            errorCount={chart.errors.length}
-            warningCount={chart.warnings.length}
+            errors={chart.errors}
+            warnings={chart.warnings}
           />
 
           {sel && (
@@ -274,12 +273,10 @@ export function App() {
             />
           )}
 
-          <WalkthroughPanel nodes={chart.nodes} edges={chart.doc.edges} />
-
-          <IssueList
-            errors={chart.errors}
-            warnings={chart.warnings}
-            offset={(sel ? PROPERTY_W : 0) + (sourceOpen ? SOURCE_W : 0)}
+          <WalkthroughPanel
+            nodes={chart.nodes}
+            edges={chart.doc.edges}
+            inset={(sel ? PROPERTY_W : 0) + (sourceOpen ? SOURCE_W : 0)}
           />
         </div>
       </div>

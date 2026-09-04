@@ -1,6 +1,6 @@
-import { useRef, type ChangeEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useReactFlow } from "@xyflow/react";
-import type { FmlStats } from "../fml/index.ts";
+import type { FmlIssue, FmlStats } from "../fml/index.ts";
 import { fileKey } from "../types/workspace.ts";
 import type { LayoutDirection } from "../types/chart.ts";
 import type { FitPadding } from "./FlowCanvas.tsx";
@@ -22,8 +22,8 @@ interface Props {
   onToggleSidebar: () => void;
   /** Shared with the canvas so "Fit" clears the chrome too. */
   padding: FitPadding;
-  errorCount: number;
-  warningCount: number;
+  errors: FmlIssue[];
+  warnings: FmlIssue[];
 }
 
 const btn =
@@ -35,6 +35,32 @@ const sep = "mx-0.5 h-4 w-px bg-line";
 export function Toolbar(props: Props) {
   const { fitView } = useReactFlow();
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const { errors, warnings } = props;
+  const issueCount = errors.length + warnings.length;
+  const [issuesOpen, setIssuesOpen] = useState(false);
+  const issuesRef = useRef<HTMLDivElement>(null);
+
+  // Close the issues dropdown on an outside click or Escape. The listener runs
+  // in the capture phase so React Flow's pane can't swallow the event first.
+  useEffect(() => {
+    if (!issuesOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (!issuesRef.current?.contains(e.target as Node)) setIssuesOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setIssuesOpen(false);
+    document.addEventListener("mousedown", onDown, true);
+    document.addEventListener("keydown", onKey, true);
+    return () => {
+      document.removeEventListener("mousedown", onDown, true);
+      document.removeEventListener("keydown", onKey, true);
+    };
+  }, [issuesOpen]);
+
+  // A stale-closed dropdown should not linger once the issues clear.
+  useEffect(() => {
+    if (issueCount === 0) setIssuesOpen(false);
+  }, [issueCount]);
 
   async function onPick(e: ChangeEvent<HTMLInputElement>) {
     const picked = Array.from(e.target.files ?? []);
@@ -128,15 +154,47 @@ export function Toolbar(props: Props) {
         Reset
       </button>
 
-      {(props.errorCount > 0 || props.warningCount > 0) && (
-        <span className="px-1.5 font-mono text-[11px]">
-          {props.errorCount > 0 && <span className="text-danger">{props.errorCount}e</span>}
-          {props.errorCount > 0 && props.warningCount > 0 && (
-            <span className="mx-1 text-line-strong">·</span>
-          )}
-          {props.warningCount > 0 && <span className="text-warn">{props.warningCount}w</span>}
-        </span>
+      {issueCount > 0 && (
+        <>
+          <span className={sep} />
+          <div ref={issuesRef} className="relative">
+            <button
+              className={`${btn} ${issuesOpen ? on : idle} font-mono`}
+              onClick={() => setIssuesOpen((v) => !v)}
+              title="Show errors and warnings"
+            >
+              {errors.length > 0 && <span className="text-danger">{errors.length}e</span>}
+              {errors.length > 0 && warnings.length > 0 && (
+                <span className="mx-1 text-line-strong">·</span>
+              )}
+              {warnings.length > 0 && <span className="text-warn">{warnings.length}w</span>}
+            </button>
+
+            {issuesOpen && (
+              <div className="absolute right-0 top-[calc(100%+8px)] z-20 max-h-[55vh] w-[380px] max-w-[80vw] overflow-auto rounded-xl border border-line bg-surface p-1.5 shadow-[0_12px_40px_-8px_rgba(0,0,0,0.7)]">
+                {errors.map((it, i) => (
+                  <IssueRow key={`e${i}`} issue={it} tone="err" />
+                ))}
+                {warnings.map((it, i) => (
+                  <IssueRow key={`w${i}`} issue={it} tone="warn" />
+                ))}
+              </div>
+            )}
+          </div>
+        </>
       )}
+    </div>
+  );
+}
+
+function IssueRow({ issue, tone }: { issue: FmlIssue; tone: "err" | "warn" }) {
+  return (
+    <div className="flex gap-2 px-1.5 py-1">
+      <span className={`shrink-0 font-mono text-[11px] ${tone === "err" ? "text-danger" : "text-warn"}`}>
+        {issue.file ? `${issue.file}:` : ""}
+        {issue.line}
+      </span>
+      <span className="text-[11px] leading-snug text-ink-dim">{issue.message}</span>
     </div>
   );
 }

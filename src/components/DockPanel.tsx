@@ -22,7 +22,9 @@ export function DockPanel({ id, title, side, inset = 0, defaultOpen = true, chil
 
   return (
     <div
-      className="absolute bottom-3 z-10 w-[min(400px,calc(50%-1rem))] overflow-hidden rounded-xl border border-line bg-surface/95 backdrop-blur-md"
+      className={`absolute bottom-3 z-10 overflow-hidden rounded-xl border border-line bg-surface/95 backdrop-blur-md ${
+        open ? "w-[min(360px,calc(50%-1rem))]" : "w-auto max-w-[min(360px,calc(50%-1rem))]"
+      }`}
       style={side === "left" ? { left: 12 + inset } : { right: 12 + inset }}
     >
       <button
@@ -30,7 +32,7 @@ export function DockPanel({ id, title, side, inset = 0, defaultOpen = true, chil
         className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left font-mono text-[10px] uppercase tracking-[0.08em] text-ink-mute transition-colors hover:text-ink"
         title={open ? "Minimise" : "Expand"}
       >
-        <span className="min-w-0 flex-1 truncate">{title}</span>
+        <span className={`truncate ${open ? "min-w-0 flex-1" : ""}`}>{title}</span>
         <span aria-hidden className="text-[10px] leading-none">
           {open ? "▾" : "▸"}
         </span>
