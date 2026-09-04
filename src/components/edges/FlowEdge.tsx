@@ -35,6 +35,7 @@ export function FlowEdge({
   markerEnd,
   style,
   data,
+  selected,
 }: EdgeProps) {
   const index = Number(data?.parallelIndex ?? 0);
 
@@ -72,11 +73,15 @@ export function FlowEdge({
 
   return (
     <>
-      <BaseEdge id={id} path={path} markerEnd={markerEnd} style={style} />
+      <BaseEdge id={id} path={path} markerEnd={markerEnd} style={style} interactionWidth={24} />
       {label ? (
         <EdgeLabelRenderer>
           <div
-            className="pointer-events-none absolute rounded-md bg-elevated px-1.5 py-0.5 font-mono text-[10px] font-medium text-ink-dim ring-1 ring-line"
+            className={`pointer-events-none absolute rounded-md px-1.5 py-0.5 font-mono text-[10px] font-medium transition-colors ${
+              selected
+                ? "bg-accent/15 text-ink ring-1 ring-accent/60"
+                : "bg-elevated text-ink-dim ring-1 ring-line"
+            }`}
             style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
           >
             {label}

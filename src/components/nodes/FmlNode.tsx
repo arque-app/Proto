@@ -1,7 +1,9 @@
 import { Fragment } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { FmlFlowNode } from "../../types/chart.ts";
+import { UNTYPED } from "../../fml/index.ts";
 import { kindColor, kindTag } from "../../lib/nodeStyle.ts";
+import { Glyph } from "../Glyph.tsx";
 
 const SIDES = [
   ["top", Position.Top],
@@ -10,24 +12,38 @@ const SIDES = [
   ["left", Position.Left],
 ] as const;
 
-/** One node renderer for every FML type; the type only changes the accent. */
-export function FmlNode({ data }: NodeProps<FmlFlowNode>) {
+/** Meta rows shown inline before the card starts collapsing them into a count. */
+const META_LIMIT = 4;
+
+/** Only render an image we can actually fetch from the browser. */
+const RENDERABLE_IMAGE = /^(https?:|data:image\/)/i;
+
+/**
+ * One card renderer for every FML node type. The type drives the accent rail,
+ * the glyph and the tag; `flow` additionally gets a stacked-card silhouette
+ * because it is a portal into another doc, and an untyped node gets a dashed
+ * border so an undeclared reference is visible at a glance.
+ */
+export function FmlNode({ data, selected }: NodeProps<FmlFlowNode>) {
   const { label, kind, meta, dir } = data;
   const lr = dir === "LR";
   const primaryTarget = lr ? "left" : "top";
   const primarySource = lr ? "right" : "bottom";
+
   const accent = kindColor(kind);
-  const entries = Object.entries(meta);
+  const untyped = kind === UNTYPED;
+  const portal = kind === "flow";
+
+  const image = meta.image && RENDERABLE_IMAGE.test(meta.image) ? meta.image : undefined;
+  const rows = Object.entries(meta).filter(([k]) => !(image && k === "image"));
+  const shown = rows.slice(0, META_LIMIT);
+  const hidden = rows.length - shown.length;
 
   const handleClass = (visible: boolean) =>
-    visible
-      ? "!h-1.5 !w-1.5 !bg-[#3d3d3d]"
-      : "!h-1 !w-1 !bg-transparent !opacity-0";
+    visible ? "!h-1.5 !w-1.5 !bg-[#3d3d3d]" : "!h-1 !w-1 !bg-transparent !opacity-0";
 
   return (
-    <div
-      className="min-w-[176px] max-w-[248px] overflow-hidden rounded-xl border border-line bg-surface-2 shadow-[0_2px_14px_-3px_rgba(0,0,0,0.55)]"
-    >
+    <div className="relative">
       {SIDES.map(([name, pos]) => (
         <Fragment key={name}>
           <Handle
@@ -45,26 +61,63 @@ export function FmlNode({ data }: NodeProps<FmlFlowNode>) {
         </Fragment>
       ))}
 
-      <div className="flex items-center gap-2 px-3 py-2">
-        <span
-          className="rounded px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-[0.08em]"
-          style={{ color: accent, background: `color-mix(in srgb, ${accent} 15%, transparent)` }}
-        >
-          {kindTag(kind)}
-        </span>
-        <span className="truncate text-[13px] font-medium text-ink">{label}</span>
-      </div>
-
-      {entries.length > 0 && (
-        <dl className="space-y-1 border-t border-line px-3 py-2 font-mono text-[11px] leading-relaxed">
-          {entries.map(([k, v]) => (
-            <div key={k} className="flex gap-2">
-              <dt className="shrink-0 text-ink-mute">{k}</dt>
-              <dd className="truncate text-ink-dim">{v}</dd>
-            </div>
-          ))}
-        </dl>
+      {/* the "there is another doc behind this" silhouette */}
+      {portal && (
+        <div className="absolute inset-0 -translate-y-1.5 translate-x-1.5 rounded-xl border border-line bg-surface" />
       )}
+
+      <div
+        title={portal && meta.doc ? `Double-click to open "${meta.doc}"` : undefined}
+        className={`relative flex min-w-[188px] max-w-[264px] overflow-hidden rounded-xl bg-surface-2 transition-shadow ${
+          untyped ? "border border-dashed border-line-strong" : "border border-line"
+        }`}
+        style={
+          selected
+            ? {
+                borderColor: `color-mix(in srgb, ${accent} 55%, transparent)`,
+                boxShadow: `0 0 0 1px color-mix(in srgb, ${accent} 35%, transparent), 0 6px 22px -6px rgba(0,0,0,0.65)`,
+              }
+            : { boxShadow: "0 2px 14px -3px rgba(0,0,0,0.55)" }
+        }
+      >
+        {/* type rail */}
+        <div className="w-[3px] shrink-0" style={{ background: accent, opacity: untyped ? 0.4 : 1 }} />
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 px-2.5 py-2">
+            <span className="shrink-0" style={{ color: accent, opacity: untyped ? 0.55 : 1 }}>
+              <Glyph kind={kind} />
+            </span>
+            <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-ink">{label}</span>
+            <span className="shrink-0 font-mono text-[9.5px] uppercase tracking-[0.08em] text-ink-mute">
+              {kindTag(kind)}
+            </span>
+          </div>
+
+          {image && (
+            <img
+              src={image}
+              alt=""
+              className="h-24 w-full border-t border-line object-cover"
+              draggable={false}
+            />
+          )}
+
+          {shown.length > 0 && (
+            <dl className="space-y-1 border-t border-line px-2.5 py-2 font-mono text-[11px] leading-relaxed">
+              {shown.map(([k, v]) => (
+                <div key={k} className="flex gap-2">
+                  <dt className="shrink-0 text-ink-mute">{k}</dt>
+                  <dd className="truncate text-ink-dim">{v}</dd>
+                </div>
+              ))}
+              {hidden > 0 && (
+                <div className="text-ink-mute/70">+{hidden} more</div>
+              )}
+            </dl>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
