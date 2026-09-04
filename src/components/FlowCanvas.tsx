@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -72,11 +72,20 @@ export function FlowCanvas({
     setEdges(chartEdges);
   }, [chartNodes, chartEdges, setNodes, setEdges]);
 
+  // Auto-fit only when the graph itself changes (new file / doc / direction) —
+  // never when a panel opens. `padding` changes on every selection, so it is
+  // read from a ref here instead of being a dependency, or each node click
+  // would kick off a viewport animation.
+  const paddingRef = useRef(padding);
+  paddingRef.current = padding;
+
   useEffect(() => {
     if (!initialized) return;
-    const id = requestAnimationFrame(() => void fitView({ padding, duration: 200 }));
+    const id = requestAnimationFrame(() =>
+      void fitView({ padding: paddingRef.current, duration: 200 }),
+    );
     return () => cancelAnimationFrame(id);
-  }, [initialized, chartNodes, chartEdges, padding, fitView]);
+  }, [initialized, chartNodes, chartEdges, fitView]);
 
   // Selection is owned by the app (the sidebar can drive it too), so the
   // rendered graph mirrors that rather than React Flow's internal flag.
