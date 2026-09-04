@@ -2,7 +2,7 @@
 
 **Focus:** FML — `.fml` Flowchart Markup Language: parser (`src/fml/`) + web viewer (React Flow + dagre)
 **Phase:** R&D — language standardised (5 node types), viewer redesigned; live at https://protoarch.web.app
-**Open:** **layout is a mess — JB + his brother want a graph-relaxation pass** (post-dagre overlap/crossing reduction); node rename + add/delete node/edge (structural — needs an FmlDoc→text serializer); breadcrumb for portal drill-down (the jump itself works); "Open folder" (File System Access API); **JB's protoArch logo PNG (Lexend 400) — remind him, then swap the sidebar text for it**; sidebar resize; label crowding on primary+reciprocal at one node; `#` in a value is still eaten by the comment lexer (JB's call); `public/index.html` is dead Firebase boilerplate; repo renamed `Proto` → `ProtoArch` (git remote updated; `CLAUDE.md` / lore still say `arque-app/Proto`)
+**Open:** node rename + add/delete node/edge (structural — needs an FmlDoc→text serializer); breadcrumb for portal drill-down (the jump itself works); "Open folder" (File System Access API); **JB has two logo concepts now — F\*ML (dev-facing mark) and protoArch (product wordmark) — waiting on final assets (vector/font or PNG) before either goes in the app**; sidebar resize; label crowding on primary+reciprocal at one node; `#` in a value is still eaten by the comment lexer (JB's call); `public/index.html` is dead Firebase boilerplate; repo moved to `github.com/joabeliot/protoarch` (org repo `arque-app/ProtoArch` retired; git remote + `CLAUDE.md` updated)
 **Next:** graph-relaxation layout pass; then Variables (`{name}` interpolation, `@env`, `capture` resolution) toward executable flows
 
 ---
@@ -127,6 +127,19 @@ checkout and back to main, it stayed put. HOW-TO viewer section updated
 (also caught it still mentioning the removed Reset button — fixed).
 Still open: long rank-skipping edges get a lonely lane; big graphs sprawl;
 dagre doesn't route other nodes around a hand-placed one on next layout.
+(11) Two logo concepts shared (not yet in the app): **F\*ML** — bold all-caps
+mark, asterisk standing in for the joke rather than spelling it — meant for
+the dev-facing language identity; **protoArch** — rounder, friendlier bold
+wordmark for the product. Deliberately different typographic voices (loud dev
+mark vs. polished product mark), matching the FML/protoArch split already
+agreed. Waiting on JB for either a font/vector source or final PNGs before
+wiring either into the sidebar — Tailwind here can only pull webfonts from
+Google Fonts, so a custom/paid face means PNG, not a font swap.
+(12) Repo moved (git remote updated, not deployed — no code change): JB
+transferred the GitHub repo from `arque-app/ProtoArch` to
+`github.com/joabeliot/protoarch` (personal account). History intact — fetch
+confirmed `origin/main` matches local HEAD after the remote switch. Updated
+`CLAUDE.md`'s Repo line; this file's header above.
 Still open: long rank-skipping edges get a lonely lane; big graphs sprawl wide;
 badge is a 20px target (small); trace + selection are independent; trace is
 one-hop only (full up/down-stream chain would be a small change).
