@@ -31,6 +31,15 @@ convergent paths can get a spurious "loop" mark depending on BFS order;
 disconnected cycle-islands past the first component aren't walked.
 Naming (parked): FML = the language/format, protoArch = the product/company.
 Repo renamed to `arque-app/ProtoArch`; git remote updated.
+(3) Layout-cleanup pass 1 (`96b9018`, deployed). JB + his brother: "the graph
+looks like a mess." Diagnosis: not node overlap — it's bezier edges cutting
+diagonally + straight chains staircasing. Pure force relaxation is the wrong
+tool for a ranked flowchart. Fix: forward edges → `getSmoothStepPath`
+(orthogonal, 8px corners) in `FlowEdge`; back/reciprocal/parallel keep the
+bowed C-curve. dagre `align: "UL"` + `nodesep`/`ranksep` 54/100 to straighten
+chains. Verified both sample docs in the browser. Pass 2 candidates if still
+messy: long rank-skipping edges get a stranded lane; columns don't align on
+one spine; feed React Flow's measured node sizes back for a second layout.
 Loaded: CLAUDE.md, GUARDRAILS.md, CONTEXT.md
 
 ### 2026-09-04 — JB / Claude — node standard + full design pass  (branch `polish/design-and-node-standard`)
