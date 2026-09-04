@@ -2,7 +2,7 @@ import { Fragment } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { FmlFlowNode } from "../../types/chart.ts";
 import { UNTYPED } from "../../fml/index.ts";
-import { kindColor, kindTag } from "../../lib/nodeStyle.ts";
+import { kindColor, kindTag, TRACE_IN, TRACE_OUT } from "../../lib/nodeStyle.ts";
 import { Glyph } from "../Glyph.tsx";
 
 const SIDES = [
@@ -66,9 +66,18 @@ export function FmlNode({ id, data, selected }: NodeProps<FmlFlowNode>) {
         <div className="absolute inset-0 -translate-y-1.5 translate-x-1.5 rounded-xl border border-line bg-surface" />
       )}
 
-      {/* prev / next tag — shown while another node's badge is traced */}
+      {/* prev / next tag — shown while another node's badge is traced. Same
+          blue-in / orange-out colour as the connecting edge, so the tag and
+          the line you followed to get here read as one thing. */}
       {(traceRole === "in" || traceRole === "out") && (
-        <div className="absolute -left-2 -top-2.5 z-20 rounded-full border border-line bg-elevated px-1.5 py-[1px] font-mono text-[9px] font-medium uppercase tracking-[0.06em] text-ink-dim">
+        <div
+          className="absolute -left-2 -top-2.5 z-20 rounded-full border px-1.5 py-[1px] font-mono text-[9px] font-medium uppercase tracking-[0.06em]"
+          style={{
+            borderColor: `color-mix(in srgb, ${traceRole === "in" ? TRACE_IN : TRACE_OUT} 55%, transparent)`,
+            background: "var(--color-elevated)",
+            color: traceRole === "in" ? TRACE_IN : TRACE_OUT,
+          }}
+        >
           {traceRole === "in" ? "prev" : "next"}
         </div>
       )}

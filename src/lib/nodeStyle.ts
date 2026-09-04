@@ -6,6 +6,13 @@ import { nodeTypeSpec } from "../fml/index.ts";
 /** Grey — an untyped node, or one using a type outside the standard. */
 export const OFF_STANDARD = "#8a8a8a";
 
+// Trace direction colours (badge-click spotlight) — deliberately not reused
+// from the type palette above, so "blue = incoming, orange = outgoing" always
+// means the same thing regardless of what type the node happens to be. Same
+// convention as inbound/outbound traffic in most network dashboards.
+export const TRACE_IN = "#5b9dd9";
+export const TRACE_OUT = "#e8935a";
+
 export function kindColor(kind: string): string {
   return nodeTypeSpec(kind)?.color ?? OFF_STANDARD;
 }

@@ -13,6 +13,7 @@ import {
 import { FmlNode } from "./nodes/FmlNode.tsx";
 import { FlowEdge } from "./edges/FlowEdge.tsx";
 import { savePositions } from "../lib/nodePositions.ts";
+import { TRACE_IN, TRACE_OUT } from "../lib/nodeStyle.ts";
 import type { FmlFlowNode, FmlNodeData } from "../types/chart.ts";
 import type { Selection } from "./PropertyPanel.tsx";
 
@@ -157,14 +158,21 @@ export function FlowCanvas({
         if (!traceView) return e.selected === selected ? e : { ...e, selected };
         const role = traceView.edgeRole.get(e.id);
         const dim = !role;
+        // Colour the connecting edges by direction — blue in, orange out —
+        // same convention as the PREV/NEXT tag on the nodes at either end.
+        const dirColor = role === "in" ? TRACE_IN : role === "out" ? TRACE_OUT : undefined;
+        const marker =
+          dirColor && e.markerEnd && typeof e.markerEnd === "object"
+            ? { ...e.markerEnd, color: dirColor }
+            : e.markerEnd;
         return {
           ...e,
           selected,
-          markerEnd: dim ? undefined : e.markerEnd,
+          markerEnd: dim ? undefined : marker,
           style: dim
             ? { ...e.style, opacity: 0.1 }
-            : { ...e.style, opacity: 1, strokeWidth: 2.25 },
-          data: { ...e.data, traceDim: dim },
+            : { ...e.style, opacity: 1, strokeWidth: 2.25, stroke: dirColor },
+          data: { ...e.data, traceDim: dim, traceDir: role },
         };
       }),
     [edges, selEdgeId, traceView],
