@@ -91,8 +91,13 @@ block) in a textarea with copy / apply / revert. `fmlEdit.ts` gains
 `nodeSource` (extract) and `setNodeSource` (parse edited text → type swap +
 block rewrite via the existing targeted edits — comments inside the block are
 not preserved). 4 new fmlEdit tests, 143 total.
-Still open: edge labels are now off nodes but the slide can look detached on a
-long jog; long rank-skipping edges get a lonely lane; big graphs sprawl.
+`placeLabels` was reverted immediately (`e052ed9`) — it anchored on the
+straight centre-to-centre line while paths are orthogonal, so labels detached
+into empty space and stacked. Back to `getSmoothStepPath`'s own label point;
+kept the `max-w-[150px]` cap + the no-fan-shift-on-routed fix. Label-on-node is
+back to "small capped chip on the path" — acceptable, not a banner. A bounded
+(~24px) perpendicular nudge is the careful version if it comes up again.
+Still open: long rank-skipping edges get a lonely lane; big graphs sprawl.
 Still open: long rank-skipping edges get a lonely lane; big graphs sprawl wide;
 badge is a 20px target (small); trace + selection are independent; trace is
 one-hop only (full up/down-stream chain would be a small change).
