@@ -58,6 +58,14 @@ Then, JB's ask: the step badge is now a button — click it and the canvas
 spotlights that node's one-hop neighbourhood (self badge fills, predecessors
 tagged PREV, successors NEXT, everything else → 20%). `trace` state in App,
 neighbour sets computed in FlowCanvas; clears on Esc / pane-click / doc switch.
+(6) DockPanel (`b27dd15`, deployed). JB wanted Walkthrough and Warnings out of
+their spots and collapsible. New `DockPanel` — a bottom-left/right floating
+card whose title bar is always shown and collapses the body to just that bar
+(state persisted per panel via `useLocalStorage`). Walkthrough left the sidebar
+for `WalkthroughPanel` (bottom-left); `buildWalkthrough` moved there; Sidebar
+no longer takes `edges`. `IssueList` → `DockPanel` bottom-right, still inset by
+open right panels. Zoom `<Controls>` moved to `bottom-center` so the three
+don't collide.
 Still open: long rank-skipping edges get a lonely lane; big graphs sprawl wide;
 badge is a 20px target (small); trace + selection are independent; trace is
 one-hop only (full up/down-stream chain would be a small change).
