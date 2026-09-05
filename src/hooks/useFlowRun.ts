@@ -177,8 +177,13 @@ export function useFlowRun(): FlowRun {
         setResult(run);
         setVars(run.vars);
         setStatus("done");
-        // Pull back to the whole flow so the finished run reads as a picture.
-        look([]);
+        // Stay where the run ended rather than pulling back to the whole
+        // graph. On a failure the last node *is* the thing you need to be
+        // looking at, and on a short run a fit-all reads as "it zoomed out and
+        // nothing happened". The fit-view control is one click away if the
+        // overview is what you want.
+        const last = run.steps[run.steps.length - 1];
+        if (last) look([last.nodeId]);
       } catch {
         // runFlow itself doesn't throw for a failed request — that's a step
         // result. Reaching here means the run was aborted.

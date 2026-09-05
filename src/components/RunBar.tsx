@@ -63,6 +63,20 @@ export function RunBar({ run, open, onToggle, onSelectNode, selectedNodeId, onCl
 
   const captured = Object.entries(run.vars);
 
+  const res = run.result;
+  const stopNote =
+    !res || res.stoppedBecause === "end"
+      ? null
+      : res.stoppedBecause === "unmodelled"
+        ? `${res.ambiguousAt} returned ${res.unmodelledStatus} and no edge leaves it for that status — draw a -${res.unmodelledStatus}> branch to carry on`
+        : res.stoppedBecause === "ambiguous"
+          ? `${res.ambiguousAt} has several outgoing edges and no status to choose between them`
+          : res.stoppedBecause === "maxSteps"
+            ? "hit the step limit — the flow probably loops"
+            : res.stoppedBecause === "aborted"
+              ? "stopped"
+              : "stopped at the first failure";
+
   return (
     <div
       className="absolute inset-x-0 bottom-0 z-20 border-t border-line bg-surface/95 backdrop-blur-md"
@@ -92,10 +106,16 @@ export function RunBar({ run, open, onToggle, onSelectNode, selectedNodeId, onCl
         <span className="font-mono text-[10px] text-ink-mute">
           {requests.length} request{requests.length === 1 ? "" : "s"}
           {total > 0 && ` · ${total}ms`}
-          {run.result?.stoppedBecause && run.result.stoppedBecause !== "end" && (
-            <> · stopped: {run.result.stoppedBecause}</>
-          )}
         </span>
+
+        {/* Say what actually happened, not the enum name. A run that stops
+            early is usually a gap in the diagram, and the person reading this
+            needs to know which gap. */}
+        {stopNote && (
+          <span className="min-w-0 shrink-[2] truncate font-mono text-[10px] text-ink-dim" title={stopNote}>
+            {stopNote}
+          </span>
+        )}
 
         {failed?.error && (
           <span className="min-w-0 flex-1 truncate font-mono text-[10px]" style={{ color: FAIL }}>

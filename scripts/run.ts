@@ -177,7 +177,12 @@ if (asJson) {
   console.log(
     `\n${run.ok ? "PASS" : "FAIL"}  ${flow.name}  —  ${run.steps.filter((s) => !s.passthrough).length} request(s), stopped: ${run.stoppedBecause}`,
   );
-  if (run.ambiguousAt) {
+  if (run.stoppedBecause === "unmodelled") {
+    console.log(
+      `  "${run.ambiguousAt}" returned ${run.unmodelledStatus} and no edge leaves it for that status.`,
+    );
+    console.log(`  Draw a -${run.unmodelledStatus}> branch to carry the run on from there.`);
+  } else if (run.ambiguousAt) {
     console.log(`  "${run.ambiguousAt}" has several outgoing edges and no status to pick one.`);
   }
 }

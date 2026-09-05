@@ -351,7 +351,15 @@ export async function runNode(
 
 // -- walking the flow -----------------------------------------------------
 
-export type StopReason = "end" | "failed" | "maxSteps" | "ambiguous" | "aborted";
+export type StopReason =
+  | "end"
+  | "failed"
+  | "maxSteps"
+  /** Several branches, and nothing to choose between them — a condition we can't evaluate. */
+  | "ambiguous"
+  /** The node branches on status, but the status it actually returned isn't drawn. */
+  | "unmodelled"
+  | "aborted";
 
 export interface RunOptions {
   transport: Transport;
@@ -396,6 +404,8 @@ export interface RunResult {
   stoppedBecause: StopReason;
   /** Set when the walk stopped because it couldn't choose an outgoing edge. */
   ambiguousAt?: string;
+  /** The status that had nowhere to go, for `unmodelled`. */
+  unmodelledStatus?: number;
 }
 
 function outgoing(edges: FmlEdge[], nodeId: string): FmlEdge[] {
@@ -449,6 +459,7 @@ export async function runFlow(doc: FmlDoc, opts: RunOptions): Promise<RunResult>
   let current: FmlNode | undefined = first;
   let stoppedBecause: StopReason = "end";
   let ambiguousAt: string | undefined;
+  let unmodelledStatus: number | undefined;
 
   while (current) {
     if (opts.signal?.aborted) {
@@ -472,11 +483,23 @@ export async function runFlow(doc: FmlDoc, opts: RunOptions): Promise<RunResult>
       break;
     }
 
-    const next: FmlEdge | undefined = chooseEdge(outgoing(doc.edges, current.id), step.response?.status);
+    const outs = outgoing(doc.edges, current.id);
+    const next: FmlEdge | undefined = chooseEdge(outs, step.response?.status);
     if (next) await opts.onEdge?.(next);
     if (!next) {
-      if (outgoing(doc.edges, current.id).length > 1) {
-        stoppedBecause = "ambiguous";
+      if (outs.length > 1) {
+        // Two different dead ends, worth telling apart. If this node branches
+        // on status and simply has no edge for the one that came back, the
+        // flow just doesn't model that outcome — that's a gap in the diagram,
+        // not a tool that couldn't decide. Calling both "ambiguous" made a
+        // missing `-403>` look like a bug in the runner.
+        const branchesOnStatus = outs.some((e) => isStatusLabel(e.label));
+        if (step.response && branchesOnStatus) {
+          stoppedBecause = "unmodelled";
+          unmodelledStatus = step.response.status;
+        } else {
+          stoppedBecause = "ambiguous";
+        }
         ambiguousAt = current.id;
       }
       break;
@@ -486,11 +509,16 @@ export async function runFlow(doc: FmlDoc, opts: RunOptions): Promise<RunResult>
 
   return {
     // Red if any step failed, or if the walk couldn't finish honestly.
-    ok: steps.every((s) => s.ok) && stoppedBecause !== "ambiguous" && stoppedBecause !== "maxSteps",
+    ok:
+      steps.every((s) => s.ok) &&
+      stoppedBecause !== "ambiguous" &&
+      stoppedBecause !== "unmodelled" &&
+      stoppedBecause !== "maxSteps",
     steps,
     vars,
     stoppedBecause,
     ...(ambiguousAt ? { ambiguousAt } : {}),
+    ...(unmodelledStatus !== undefined ? { unmodelledStatus } : {}),
   };
 }
 
