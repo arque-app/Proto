@@ -238,10 +238,20 @@ variable store, and asserts `expect`. Exit code is 0 on pass, 1 on fail — it
 works as a CI check as-is.
 
 **Which edge it follows.** After an `api` node, the response status picks the
-branch: that is exactly what `-200>` / `-404>` mean. Otherwise a lone outgoing
-edge is taken whatever its label. If several edges leave a node and no status
-can choose between them, the run **stops and says so** rather than guessing a
-path and reporting a green test that never touched the branch you cared about.
+branch: that is exactly what `-200>` / `-404>` mean — a `decision` node's own
+`condition:` is *not* one of the things that picks a branch; nothing evaluates
+it yet, so a `decision` node needs exactly one way forward today (see
+`examples/branching.fml`). Otherwise a lone outgoing edge is taken whatever its
+label.
+
+If the run can't tell which edge to take, it **stops and says so** rather than
+guessing a path and reporting a green test that never touched the branch you
+cared about — two different reasons for that:
+- **unmodelled** — the node branches on status, the response just didn't match
+  any of the edges drawn (a live 403 with only `-200>`/`-404>` drawn). The
+  message names the missing status: draw `-403>` and the run carries on.
+- **ambiguous** — several edges leave a node and none of them are status
+  labels at all, so there's no way to pick.
 
 **Capture paths** read from the response:
 
@@ -293,9 +303,21 @@ mistakes that only bite once you actually run something:
 Note what is deliberately *not* flagged: `expect: 200` on a node that also
 draws `-404>`. That pairing is the idiom, not a contradiction.
 
-> No browser runner yet — that needs the CORS answer (proxy vs. the backend JB
-> mentioned). The engine takes its transport as an argument precisely so that
-> decision changes one function, not this logic.
+### Running a flow from the app
+
+The canvas has a **▶ Run** button (only enabled when the active doc has an
+`api` node) — same engine as the CLI, so everything above applies unchanged.
+Watch mode moves the camera node → edge → node as the run actually happens,
+the step badge doubles as pass/fail on the card, and a bottom bar lists every
+step with timing and the live variable store. A node's **Run** tab in the
+property panel (only present once it's actually been run) shows the exact
+request, response, and captures for that node. `FAST` turns the camera-follow
+pacing off — the run itself is always full-speed regardless.
+
+Same CORS boundary as any browser client: dev (`npm run dev`) routes through a
+local proxy so any API works; the deployed site calls `fetch` directly and can
+only reach APIs that send `Access-Control-Allow-Origin` for it. The CLI has
+neither restriction — it's plain Node.
 
 ### Variables — `{name}`
 
@@ -506,7 +528,7 @@ per journey, assembled at the top of the entry file:
 | Endpoint response routes somewhere | `api -status> page` |
 | Success / failure / empty branch | multiple labelled arrows from the `api` node |
 | Deep link / push / cold start / webhook | an `event` node, with `source:` naming the trigger |
-| Client-side branch (has-token? role check?) | a `decision` node, then one labelled arrow per outcome |
+| Client-side branch (has-token? role check?) | a `decision` node — **draws** the branch, but if the flow needs to actually *run* past it, the fork has to happen one `api` node earlier, on that call's status (see `examples/branching.fml`); a `decision` node itself takes exactly one arrow forward today |
 | A sub-journey that deserves its own diagram | a `flow` node with `doc:`, plus the `@doc` / `@fof` it points at |
 | Why a box / branch exists | `note:` in that node's `@node { }` block |
 | Why a *transition* is the way it is | a `{ note: … }` block on the arrow |
@@ -584,7 +606,10 @@ per journey, assembled at the top of the entry file:
 - **Off-standard node types are not errors in loose mode.** Anything outside
   `page` / `api` / `decision` / `event` / `flow` renders grey and warns; under
   `strict` it errors. Only an unknown `@directive` always errors.
-- **Unknown `@node` keys are not errors.** Every key renders on the box.
+- **Unknown `@node` keys are not parse errors.** Every key renders on the box
+  regardless. `node scripts/demo.ts` *does* flag one on a standard type as a
+  warning, though — that's the typo catcher (`heder.Accept` never sending is
+  a worse surprise than a warning).
 - **Key charset is `[A-Za-z0-9_.-]`.** The `.` is what makes `header.Accept`,
   `query.page` and `capture.token` work.
 - **Blank lines are ignored today.** Use them to visually group related flows;
@@ -698,3 +723,9 @@ What the viewer gives you beyond the picture:
 - [ ] Every `@fof` line has `as <name>` and a path with no extension
 - [ ] Every `{name}` either has an `@vars` default, is `capture`d by an earlier
       node in the *same* doc, or is meant to stay unset (a secret)
+- [ ] Every `decision` node has exactly one way forward — its `condition:` is
+      documentation, not something the runner evaluates yet
+- [ ] `node scripts/demo.ts <file>` parses clean and lints clean (the
+      **checks** section is empty, or every remaining line is `info`)
+- [ ] If it has `api` nodes: `node scripts/run.ts <file> --dry` shows the
+      request(s) you expect, then `node scripts/run.ts <file>` actually passes

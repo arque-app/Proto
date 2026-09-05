@@ -1,0 +1,98 @@
+# branching.fml — a flow with real forks, for watching the run camera pick a
+# branch instead of just walking a straight line.
+#
+#   node scripts/run.ts examples/branching.fml            # happy path, all 200s
+#   node scripts/run.ts examples/branching.fml --var userId=999999
+#                                                          # forces the checkUser
+#                                                          # 404 branch instead
+#
+# Every fork here is the response STATUS of a single api node — that's the
+# only thing the engine can route on today (see @node HasProfile below for
+# why a `decision` node's own condition isn't one of those things yet).
+# jsonplaceholder's single-resource lookups (/users/:id, /posts/:id,
+# /photos/:id) genuinely 404 for an out-of-range id — its LIST endpoints
+# (/posts?userId=X) don't, they just come back 200 with an empty array, so
+# they're deliberately not used as a fork here.
+
+@meta
+  title: Branching demo — real status-based forks
+  base: https://jsonplaceholder.typicode.com
+
+@vars
+  userId: 1
+  postId: 1
+  photoId: 1
+
+@nodes
+  Start         = page
+  checkUser     = api
+  HasProfile    = decision
+  Dashboard     = page
+  NotFound      = page
+  retryLogin    = api
+  loadPost      = api
+  PostDetail    = page
+  PostMissing   = page
+  loadPhoto     = api
+  PhotoDetail   = page
+  PhotoMissing  = page
+
+@node checkUser {
+  method: GET
+  path: /users/{userId}
+  capture.username: $.username
+  expect: 200
+}
+
+# A `decision` node is a legitimate thing to draw here — but the engine
+# doesn't evaluate `condition:` yet, only an api node's response status. So
+# this one just documents intent and has a single way forward; it isn't
+# what actually picks the branch above it (checkUser's status is).
+@node HasProfile {
+  condition: username was captured
+}
+
+@node retryLogin {
+  method: GET
+  path: /users/1
+  capture.username: $.username
+  expect: 200
+}
+
+@node loadPost {
+  method: GET
+  path: /posts/{postId}
+  capture.postTitle: $.title
+  expect: 200
+}
+
+@node loadPhoto {
+  method: GET
+  path: /photos/{photoId}
+  capture.photoTitle: $.title
+  expect: 200
+}
+
+@flow
+  Start -check> checkUser
+
+  checkUser:
+    -200> HasProfile
+    -404> NotFound
+
+  HasProfile -yes> Dashboard
+
+  # the 404 branch retries against a known-good id and rejoins the happy
+  # path — a fork isn't always a dead end, it can loop back in.
+  NotFound -retry> retryLogin
+  retryLogin -200> Dashboard
+
+  Dashboard -open> loadPost
+  loadPost:
+    -200> PostDetail
+    -404> PostMissing
+
+  PostDetail -photo> loadPhoto
+  loadPhoto:
+    -200> PhotoDetail
+    -404> PhotoMissing
