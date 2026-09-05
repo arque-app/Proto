@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState, type DragEvent } from "react";
-import { ReactFlowProvider } from "@xyflow/react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { ReactFlowProvider, type Edge } from "@xyflow/react";
 import type { FmlEdge } from "./fml/index.ts";
 import { FlowCanvas, fitPadding } from "./components/FlowCanvas.tsx";
 import { Sidebar } from "./components/Sidebar.tsx";
@@ -23,6 +23,7 @@ import {
 } from "./lib/fmlEdit.ts";
 import { expandPortal, type BubbleGraph } from "./lib/expandPortal.ts";
 import { nodeSize } from "./lib/layout.ts";
+import type { FmlFlowNode } from "./types/chart.ts";
 import { fileKey, type Workspace } from "./types/workspace.ts";
 
 const WS_KEY = "protoarque_fml_ws";
@@ -147,36 +148,92 @@ export function App() {
 
   // What the canvas actually renders: the active doc's own graph, portal cards
   // wired up to toggle their bubble, plus every expanded bubble's content.
+  // Reused across renders so a node whose status *hasn't* changed this tick
+  // keeps the exact same object reference — see the note inside the memo.
+  const nodeCacheRef = useRef<{ chartNodes: FmlFlowNode[]; byId: Map<string, FmlFlowNode> }>({
+    chartNodes: [],
+    byId: new Map(),
+  });
+
   const canvasNodes = useMemo(() => {
     const ran = run.status !== "idle";
+    // A real doc/parse change invalidates the whole cache — every id's base
+    // data is fresh anyway.
+    if (nodeCacheRef.current.chartNodes !== chart.nodes) {
+      nodeCacheRef.current = { chartNodes: chart.nodes, byId: new Map() };
+    }
+    const cache = nodeCacheRef.current.byId;
+    const nextCache = new Map<string, FmlFlowNode>();
+
     const withState = chart.nodes.map((n) => {
+      const needsExpand = n.data.kind === "flow";
       // A node the finished run never reached recedes rather than sitting
       // there looking equally relevant to the ones that actually executed.
-      const state =
-        run.nodeState.get(n.id) ??
-        (run.status === "done" && !run.visited.has(n.id) ? "skipped" : undefined);
-      const needsExpand = n.data.kind === "flow";
-      if (!ran && !needsExpand) return n;
-      return {
+      const state = ran
+        ? (run.nodeState.get(n.id) ?? (run.status === "done" && !run.visited.has(n.id) ? "skipped" : undefined))
+        : undefined;
+      const wantExpanded = needsExpand ? expanded.has(n.id) : undefined;
+
+      const cached = cache.get(n.id);
+      // Reuse the SAME object when nothing about this node actually changed.
+      // React Flow re-measures a node whenever its data object gets a new
+      // identity — giving all 13 nodes a fresh object on *every* run tick
+      // (instead of just the one whose status changed) meant no node ever
+      // stayed "measured" for more than an instant, which starved
+      // useNodesInitialized() of the stability it needs to settle. That let a
+      // stray one-time fit-all (see FlowCanvas) land at an arbitrary moment
+      // mid-run instead of only at genuine load — the actual cause of the
+      // camera appearing to randomly zoom out during a run.
+      if (cached && cached.data.runState === state && cached.data.expanded === wantExpanded) {
+        nextCache.set(n.id, cached);
+        return cached;
+      }
+
+      const built: FmlFlowNode = {
         ...n,
         data: {
           ...n.data,
-          ...(needsExpand ? { expanded: expanded.has(n.id), onExpand: toggleExpand } : {}),
+          ...(needsExpand ? { expanded: wantExpanded, onExpand: toggleExpand } : {}),
           ...(ran ? { runState: state } : {}),
         },
       };
+      nextCache.set(n.id, built);
+      return built;
     });
+
+    nodeCacheRef.current.byId = nextCache;
     return [...withState, ...bubbles.flatMap((b) => b.nodes)];
   }, [chart.nodes, expanded, toggleExpand, bubbles, run.status, run.nodeState, run.visited]);
 
+  // Same reuse trick as canvasNodes — same reasoning: an edge that's neither
+  // the active one nor was just taken shouldn't get a new object every tick.
+  const edgeCacheRef = useRef<{ chartEdges: Edge[]; byId: Map<string, Edge> }>({
+    chartEdges: [],
+    byId: new Map(),
+  });
+
   const canvasEdges = useMemo(() => {
     const ran = run.status !== "idle";
-    const own = ran
-      ? chart.edges.map((e) => ({
-          ...e,
-          data: { ...e.data, runActive: e.id === run.activeEdge, runTaken: run.takenEdges.has(e.id) },
-        }))
-      : chart.edges;
+    if (edgeCacheRef.current.chartEdges !== chart.edges) {
+      edgeCacheRef.current = { chartEdges: chart.edges, byId: new Map() };
+    }
+    const cache = edgeCacheRef.current.byId;
+    const nextCache = new Map<string, Edge>();
+
+    const own = chart.edges.map((e) => {
+      const active = ran && e.id === run.activeEdge;
+      const taken = ran && run.takenEdges.has(e.id);
+      const cached = cache.get(e.id);
+      if (cached && cached.data?.runActive === active && cached.data?.runTaken === taken) {
+        nextCache.set(e.id, cached);
+        return cached;
+      }
+      const built: Edge = { ...e, data: { ...e.data, runActive: active, runTaken: taken } };
+      nextCache.set(e.id, built);
+      return built;
+    });
+
+    edgeCacheRef.current.byId = nextCache;
     return [...own, ...bubbles.flatMap((b) => b.edges)];
   }, [chart.edges, bubbles, run.status, run.activeEdge, run.takenEdges]);
 
@@ -386,6 +443,7 @@ export function App() {
             posDocKey={chart.posDocKey}
             fitKey={fitKey}
             focus={run.focus}
+            runActive={run.status !== "idle"}
             padding={padding}
           />
           <Toolbar

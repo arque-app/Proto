@@ -72,6 +72,15 @@ interface Props {
    * says *what* to look at, this knows *how*.
    */
   focus?: { ids: string[]; nonce: number } | null;
+  /**
+   * A run is in progress (or has one queued). `useNodesInitialized()` isn't a
+   * one-time "the graph is ready" flag — it can still blip false→true during
+   * a run (one node's data object changing identity is enough), and that
+   * blip is indistinguishable from a genuine first load. Rather than trying
+   * to tell those apart, the structural auto-fit simply doesn't run at all
+   * while this is true — a run already owns the camera.
+   */
+  runActive: boolean;
   /** Keeps `fitView` from tucking nodes under the toolbar or side panels. */
   padding: FitPadding;
 }
@@ -87,6 +96,7 @@ export function FlowCanvas({
   posDocKey,
   fitKey,
   focus,
+  runActive,
   padding,
 }: Props) {
   const { fitView } = useReactFlow();
@@ -126,20 +136,28 @@ export function FlowCanvas({
   paddingRef.current = padding;
 
   // `useNodesInitialized()` isn't a one-time "the graph is ready" flag — it
-  // flips false→true again almost every time ANY node's data changes (a run
-  // tick touching `runState` counts), because React Flow re-measures on every
-  // node update. Depending on it directly meant this effect fired a fresh
-  // fit-ALL roughly every run tick, ~40ms after the run's own focus fitView —
-  // always winning the race and stomping the camera follow before a single
-  // frame of it could show. Only fit-all once per *real* graph change
-  // (`fitKey`), not on every remeasure of the same graph.
+  // can flip false→true again whenever a node's data object gets a new
+  // identity (a run tick touching one node's `runState` is enough), because
+  // React Flow re-measures on every node update. The `fitDoneFor` guard below
+  // stops that from firing more than once *per graph* — but the very first
+  // legitimate "true" can itself land squarely inside an already-running run
+  // if the initial measurement pass simply hasn't finished by the time Run
+  // was clicked, and there's no reliable way to tell that apart from a real
+  // first load. So a run owns the camera outright: while one is active this
+  // effect is a no-op, and it also marks this graph "already fitted" right
+  // away — not just skipped-for-now — so nothing retroactively fires a
+  // fit-all the instant the run ends and hands the camera back.
   const fitDoneFor = useRef<string | null>(null);
   useEffect(() => {
+    if (runActive) {
+      fitDoneFor.current = fitKey;
+      return;
+    }
     if (!initialized || fitDoneFor.current === fitKey) return;
     fitDoneFor.current = fitKey;
     const id = requestAnimationFrame(() => void fitView({ padding: paddingRef.current, duration: 200 }));
     return () => cancelAnimationFrame(id);
-  }, [initialized, fitKey, fitView]);
+  }, [runActive, initialized, fitKey, fitView]);
 
   // Follow the run: settle on the node being called, then pull out to frame
   // both ends of the edge a request is crossing. `maxZoom` is what stops a
@@ -297,8 +315,14 @@ export function FlowCanvas({
         }}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        fitView
-        fitViewOptions={{ padding }}
+        // No `fitView` boolean here on purpose — that's React Flow's own
+        // internal "fit once nodesInitialized flips true" behaviour, entirely
+        // separate from and invisible to the guarded effect above. It doesn't
+        // know about `runActive`, so on a run started before that first
+        // initialization lands it fires its own fit-all mid-run regardless of
+        // anything this component does — this WAS the actual remaining source
+        // of the camera randomly zooming out. The effect above is the only
+        // thing that does an initial fit now.
         nodesDraggable
         nodesConnectable={false}
         edgesReconnectable={false}
