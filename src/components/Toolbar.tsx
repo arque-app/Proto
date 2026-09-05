@@ -13,6 +13,11 @@ interface Props {
   onToggleSidebar: () => void;
   errors: FmlIssue[];
   warnings: FmlIssue[];
+  /** Run controls — the active doc has at least one `api` node to send. */
+  canRun: boolean;
+  running: boolean;
+  onRun: () => void;
+  onStop: () => void;
 }
 
 const btn =
@@ -92,6 +97,30 @@ export function Toolbar(props: Props) {
           <span className={sep} />
         </>
       )}
+
+      {/* The primary action, first and visually weightier than the rest —
+          running the flow is what this whole thing is for. */}
+      <button
+        className={`${btn} ${
+          props.running
+            ? "bg-danger/15 text-danger ring-1 ring-danger/40 hover:bg-danger/25"
+            : props.canRun
+              ? "bg-api/15 text-api ring-1 ring-api/40 hover:bg-api/25"
+              : "cursor-not-allowed text-ink-mute/50"
+        }`}
+        disabled={!props.canRun && !props.running}
+        onClick={props.running ? props.onStop : props.onRun}
+        title={
+          props.running
+            ? "Stop the run"
+            : props.canRun
+              ? "Send this flow's api calls"
+              : "This doc has no api nodes to run"
+        }
+      >
+        {props.running ? "■ Stop" : "▶ Run"}
+      </button>
+      <span className={sep} />
 
       <button className={`${btn} ${idle}`} onClick={() => fileRef.current?.click()}>
         Open&nbsp;.fml

@@ -12,6 +12,7 @@ import {
   type FmlNode,
   type NodeVarUsage,
 } from "../fml/index.ts";
+import type { StepResult } from "../fml/index.ts";
 import { kindColor } from "../lib/nodeStyle.ts";
 import { Glyph } from "./Glyph.tsx";
 
@@ -32,6 +33,8 @@ interface Props {
   /** Literal FML for the selected node — decl line + `@node { }` block. */
   nodeCode: string;
   onCommitNodeCode: (id: string, text: string) => void;
+  /** This node's result in the last run, when there was one. */
+  runStep?: StepResult;
 }
 
 type Row = [string, string];
@@ -42,7 +45,7 @@ const keyLabel = "font-mono text-[10px] uppercase tracking-[0.08em] text-ink-mut
 const chip =
   "rounded-md border border-line px-1.5 py-0.5 font-mono text-[10px] text-ink-dim transition-colors hover:border-line-strong hover:text-ink";
 
-type PanelTab = "props" | "about" | "code";
+type PanelTab = "props" | "about" | "code" | "run";
 
 export function PropertyPanel({
   sel,
@@ -54,6 +57,7 @@ export function PropertyPanel({
   onCommitEdgeNote,
   nodeCode,
   onCommitNodeCode,
+  runStep,
 }: Props) {
   const node = sel.kind === "node" ? doc.nodes.find((n) => n.id === sel.id) : undefined;
   const edge = sel.kind === "edge" ? doc.edges.find((e) => e.id === sel.id) : undefined;
@@ -61,6 +65,16 @@ export function PropertyPanel({
 
   const [tab, setTab] = useState<PanelTab>("props");
   useEffect(() => { setTab("props"); }, [sel.id]);
+
+  // The Run tab only exists once this node has actually been run.
+  const tabs: PanelTab[] = runStep && !runStep.passthrough
+    ? ["props", "about", "code", "run"]
+    : ["props", "about", "code"];
+  // Don't strand the panel on a tab that just disappeared (run cleared).
+  useEffect(() => {
+    if (!tabs.includes(tab)) setTab("props");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runStep]);
 
   const inEdges = useMemo(
     () => (node ? doc.edges.filter((e) => e.target === node.id) : []),
@@ -98,7 +112,7 @@ export function PropertyPanel({
 
       {node && (
         <div className="flex border-b border-line">
-          {(["props", "about", "code"] as PanelTab[]).map((t) => (
+          {tabs.map((t) => (
             <button
               key={t}
               className={`flex-1 py-2 text-[11px] font-medium capitalize transition-colors ${
@@ -119,6 +133,7 @@ export function PropertyPanel({
         {node && tab === "about" && (
           <AboutView node={node} inEdges={inEdges} outEdges={outEdges} varUsage={varUsage} />
         )}
+        {node && tab === "run" && runStep && <RunView step={runStep} />}
         {node && tab === "code" && (
           <CodeView
             key={sel.id}
@@ -531,5 +546,114 @@ function EdgeForm({
         + note key
       </button>
     </div>
+  );
+}
+
+/**
+ * What actually happened at this node in the last run — the exact request that
+ * went out, what came back, and what was pulled from it.
+ *
+ * This is the request/response inspector every API client has, except you get
+ * to it by clicking the box on the map instead of hunting a list.
+ */
+function RunView({ step }: { step: StepResult }) {
+  const pass = step.ok;
+  const colour = pass ? "var(--color-api)" : "var(--color-danger)";
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-2">
+        <span className="font-mono text-[11px] font-semibold" style={{ color: colour }}>
+          {pass ? "PASSED" : "FAILED"}
+        </span>
+        {step.response && (
+          <span className="font-mono text-[11px] tabular-nums text-ink-dim">
+            {step.response.status}
+          </span>
+        )}
+        {step.durationMs !== undefined && (
+          <span className="ml-auto font-mono text-[10px] tabular-nums text-ink-mute">
+            {step.durationMs}ms
+          </span>
+        )}
+      </div>
+
+      {step.error && (
+        <p
+          className="rounded-md border px-2 py-1.5 font-mono text-[10.5px] leading-relaxed"
+          style={{
+            color: colour,
+            borderColor: `color-mix(in srgb, ${colour} 35%, transparent)`,
+            background: `color-mix(in srgb, ${colour} 8%, transparent)`,
+          }}
+        >
+          {step.error}
+        </p>
+      )}
+
+      {step.captures.length > 0 && (
+        <section>
+          <div className={keyLabel}>captured</div>
+          <div className="mt-1 flex flex-col gap-1">
+            {step.captures.map((c) => (
+              <div key={c.name} className="flex gap-2 font-mono text-[11px]">
+                <span className="shrink-0 text-ink-dim">{c.name}</span>
+                <span
+                  className="min-w-0 flex-1 truncate"
+                  style={{ color: c.ok ? "var(--color-ink)" : "var(--color-danger)" }}
+                  title={c.ok ? c.value : `nothing at ${c.path}`}
+                >
+                  {c.ok ? c.value : `✖ nothing at ${c.path}`}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {step.request && (
+        <section>
+          <div className={keyLabel}>request</div>
+          <p className="mt-1 break-all font-mono text-[11px] text-ink">
+            <span className="text-ink-dim">{step.request.method}</span> {step.request.url}
+          </p>
+          {Object.entries(step.request.headers).length > 0 && (
+            <div className="mt-1.5 flex flex-col gap-0.5">
+              {Object.entries(step.request.headers).map(([k, v]) => (
+                <div key={k} className="flex gap-2 font-mono text-[10px]">
+                  <span className="shrink-0 text-ink-mute">{k}</span>
+                  <span className="min-w-0 flex-1 truncate text-ink-dim" title={v}>
+                    {v}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          {step.request.body && <Body text={step.request.body} />}
+        </section>
+      )}
+
+      {step.response && (
+        <section>
+          <div className={keyLabel}>response</div>
+          <Body text={step.response.body} />
+        </section>
+      )}
+    </div>
+  );
+}
+
+/** Pretty-print JSON when it is JSON; show it verbatim when it isn't. */
+function Body({ text }: { text: string }) {
+  let shown = text;
+  try {
+    shown = JSON.stringify(JSON.parse(text), null, 2);
+  } catch {
+    /* not JSON — as-is */
+  }
+  return (
+    <pre className="mt-1 max-h-[240px] overflow-auto rounded-md border border-line bg-bg px-2 py-1.5 font-mono text-[10.5px] leading-relaxed text-ink-dim">
+      {shown || "(empty)"}
+    </pre>
   );
 }

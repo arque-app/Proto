@@ -375,8 +375,17 @@ export interface RunOptions {
    */
   stopOnFailure?: boolean;
   signal?: AbortSignal;
-  /** Called as each step finishes — for live per-node status on the canvas. */
-  onStep?: (step: StepResult) => void;
+  /**
+   * Called just before a node is attempted, and as each step finishes, and as
+   * each edge is followed — this is what drives live status on the canvas.
+   *
+   * **Awaited.** A caller that returns a promise holds the walk until it
+   * resolves, which is how the UI paces a run slow enough to watch without a
+   * single `setTimeout` living in here. Return nothing for full speed.
+   */
+  onStepStart?: (node: FmlNode) => void | Promise<void>;
+  onStep?: (step: StepResult) => void | Promise<void>;
+  onEdge?: (edge: FmlEdge) => void | Promise<void>;
 }
 
 export interface RunResult {
@@ -451,9 +460,10 @@ export async function runFlow(doc: FmlDoc, opts: RunOptions): Promise<RunResult>
       break;
     }
 
+    await opts.onStepStart?.(current);
     const step: StepResult = await runNode(current, doc.meta, vars, opts.transport, opts.signal);
     steps.push(step);
-    opts.onStep?.(step);
+    await opts.onStep?.(step);
 
     // No response means nothing to route on — an unbuildable request, a
     // missing variable, a dead host. That always ends the walk.
@@ -463,6 +473,7 @@ export async function runFlow(doc: FmlDoc, opts: RunOptions): Promise<RunResult>
     }
 
     const next: FmlEdge | undefined = chooseEdge(outgoing(doc.edges, current.id), step.response?.status);
+    if (next) await opts.onEdge?.(next);
     if (!next) {
       if (outgoing(doc.edges, current.id).length > 1) {
         stoppedBecause = "ambiguous";

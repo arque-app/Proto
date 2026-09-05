@@ -56,6 +56,13 @@ interface Props {
   onTrace: (id: string | null) => void;
   /** Identifies the active doc for `nodePositions`, so a drag saves under the right key. */
   posDocKey: string;
+  /**
+   * Changes only when the *graph* changes — not when a run repaints it.
+   * `chartNodes` / `chartEdges` now get a new identity on every run tick (live
+   * pass/fail, the travelling pulse), and re-fitting the viewport on each of
+   * those would yank the canvas around while you're trying to watch the run.
+   */
+  fitKey: string;
   /** Keeps `fitView` from tucking nodes under the toolbar or side panels. */
   padding: FitPadding;
 }
@@ -69,6 +76,7 @@ export function FlowCanvas({
   trace,
   onTrace,
   posDocKey,
+  fitKey,
   padding,
 }: Props) {
   const { fitView } = useReactFlow();
@@ -84,17 +92,21 @@ export function FlowCanvas({
   const force = useForceLayout();
   const draggingId = useRef<string | null>(null);
 
-  // Re-seed from the parsed chart only when the source / layout direction
-  // changes. A drag mutates local state via onNodesChange and never touches
-  // chartNodes, so hand-placed nodes stay where you drop them. Any structural
-  // change also drops the graph back to a fully static layout — no lingering
-  // push from a previous drag survives into a different doc or edit.
+  // Mirror the incoming graph. This runs often — every run tick hands down a
+  // new array so live status reaches the nodes — so it stays cheap: no layout,
+  // no viewport work. A drag mutates local state via onNodesChange and never
+  // touches chartNodes, so hand-placed nodes stay where you drop them.
   useEffect(() => {
     setNodes(chartNodes);
     setEdges(chartEdges);
+  }, [chartNodes, chartEdges, setNodes, setEdges]);
+
+  // Only a real structural change drops the graph back to a static layout, so
+  // no lingering push from a previous drag survives into a different doc.
+  useEffect(() => {
     force.reset();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chartNodes, chartEdges, setNodes, setEdges]);
+  }, [fitKey]);
 
   // Auto-fit only when the graph itself changes (new file / doc / direction) —
   // never when a panel opens. `padding` changes on every selection, so it is
@@ -109,7 +121,7 @@ export function FlowCanvas({
       void fitView({ padding: paddingRef.current, duration: 200 }),
     );
     return () => cancelAnimationFrame(id);
-  }, [initialized, chartNodes, chartEdges, fitView]);
+  }, [initialized, fitKey, fitView]);
 
   // Selection is owned by the app (the sidebar can drive it too), so the
   // rendered graph mirrors that rather than React Flow's internal flag.

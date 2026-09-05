@@ -7,6 +7,9 @@ import { Toolbar } from "./components/Toolbar.tsx";
 import { SourcePanel } from "./components/SourcePanel.tsx";
 import { PropertyPanel, type Selection } from "./components/PropertyPanel.tsx";
 import { WalkthroughPanel } from "./components/WalkthroughPanel.tsx";
+import { RunBar, RUN_BAR_COLLAPSED_H, RUN_BAR_H } from "./components/RunBar.tsx";
+import { RunInputs } from "./components/RunInputs.tsx";
+import { useFlowRun } from "./hooks/useFlowRun.ts";
 import { useFmlChart } from "./hooks/useFmlChart.ts";
 import { useLocalStorage } from "./hooks/useLocalStorage.ts";
 import { SAMPLE_FML } from "./lib/sample.ts";
@@ -62,6 +65,10 @@ export function App() {
   const [trace, setTrace] = useState<string | null>(null);
   // Portal node ids currently unfolded inline as a bubble.
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // Executing the flow: engine state, plus the bar that reports it.
+  const run = useFlowRun();
+  const [runBarOpen, setRunBarOpen] = useState(true);
+  const [askingInputs, setAskingInputs] = useState<string[] | null>(null);
 
   // Layout is always top-down; strict validation stays off (loose mode).
   const chart = useFmlChart(ws, activeDoc, "TB", false);
@@ -70,7 +77,27 @@ export function App() {
   useEffect(() => {
     setTrace(null);
     setExpanded(new Set());
+    // A run belongs to the doc it ran against — carrying green ticks over to a
+    // different flow would be a lie.
+    run.clear();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chart.activeDoc, ws.entry]);
+
+  const apiNodeCount = useMemo(
+    () => chart.doc.nodes.filter((n) => n.type === "api").length,
+    [chart.doc],
+  );
+
+  // Ask for run-time inputs first when the file can't supply them; otherwise go.
+  const startRun = useCallback(() => {
+    const needed = run.inputsNeeded(chart.doc);
+    if (needed.length > 0) {
+      setAskingInputs(needed);
+      return;
+    }
+    setRunBarOpen(true);
+    run.start(chart.doc, {});
+  }, [chart.doc, run]);
 
   const toggleExpand = useCallback((id: string) => {
     setExpanded((prev) => {
@@ -121,18 +148,37 @@ export function App() {
   // What the canvas actually renders: the active doc's own graph, portal cards
   // wired up to toggle their bubble, plus every expanded bubble's content.
   const canvasNodes = useMemo(() => {
-    const withExpand = chart.nodes.map((n) =>
-      n.data.kind === "flow"
-        ? { ...n, data: { ...n.data, expanded: expanded.has(n.id), onExpand: toggleExpand } }
-        : n,
-    );
-    return [...withExpand, ...bubbles.flatMap((b) => b.nodes)];
-  }, [chart.nodes, expanded, toggleExpand, bubbles]);
+    const ran = run.status !== "idle";
+    const withState = chart.nodes.map((n) => {
+      // A node the finished run never reached recedes rather than sitting
+      // there looking equally relevant to the ones that actually executed.
+      const state =
+        run.nodeState.get(n.id) ??
+        (run.status === "done" && !run.visited.has(n.id) ? "skipped" : undefined);
+      const needsExpand = n.data.kind === "flow";
+      if (!ran && !needsExpand) return n;
+      return {
+        ...n,
+        data: {
+          ...n.data,
+          ...(needsExpand ? { expanded: expanded.has(n.id), onExpand: toggleExpand } : {}),
+          ...(ran ? { runState: state } : {}),
+        },
+      };
+    });
+    return [...withState, ...bubbles.flatMap((b) => b.nodes)];
+  }, [chart.nodes, expanded, toggleExpand, bubbles, run.status, run.nodeState, run.visited]);
 
-  const canvasEdges = useMemo(
-    () => [...chart.edges, ...bubbles.flatMap((b) => b.edges)],
-    [chart.edges, bubbles],
-  );
+  const canvasEdges = useMemo(() => {
+    const ran = run.status !== "idle";
+    const own = ran
+      ? chart.edges.map((e) => ({
+          ...e,
+          data: { ...e.data, runActive: e.id === run.activeEdge, runTaken: run.takenEdges.has(e.id) },
+        }))
+      : chart.edges;
+    return [...own, ...bubbles.flatMap((b) => b.edges)];
+  }, [chart.edges, bubbles, run.status, run.activeEdge, run.takenEdges]);
 
   // A selection may be a bubble child — resolve it back to the doc + raw id
   // it actually represents, so edits land in the right file.
@@ -287,15 +333,25 @@ export function App() {
 
   const fileNames = useMemo(() => Object.keys(ws.files), [ws.files]);
 
+  // Identity of the *graph*, so the canvas refits when the doc actually
+  // changes but sits still while a run repaints it.
+  const fitKey = useMemo(
+    () => `${ws.entry}|${chart.activeDoc}|${canvasNodes.length}|${canvasEdges.length}`,
+    [ws.entry, chart.activeDoc, canvasNodes.length, canvasEdges.length],
+  );
+
+  const runBarH =
+    run.status === "idle" ? 0 : runBarOpen ? RUN_BAR_H : RUN_BAR_COLLAPSED_H;
+
   const padding = useMemo(
     () =>
       fitPadding({
         top: TOOLBAR_H,
         right: GUTTER + (sel ? PROPERTY_W : 0) + (sourceOpen ? SOURCE_W : 0),
-        bottom: GUTTER,
+        bottom: GUTTER + runBarH,
         left: GUTTER,
       }),
-    [sel, sourceOpen],
+    [sel, sourceOpen, runBarH],
   );
 
   return (
@@ -328,6 +384,7 @@ export function App() {
             trace={trace}
             onTrace={setTrace}
             posDocKey={chart.posDocKey}
+            fitKey={fitKey}
             padding={padding}
           />
           <Toolbar
@@ -340,6 +397,10 @@ export function App() {
             onToggleSidebar={() => setSidebarOpen(true)}
             errors={chart.errors}
             warnings={chart.warnings}
+            canRun={apiNodeCount > 0}
+            running={run.status === "running"}
+            onRun={startRun}
+            onStop={run.stop}
           />
 
           {sel && selResolved && (
@@ -353,6 +414,7 @@ export function App() {
               onCommitEdgeNote={commitEdgeNote}
               nodeCode={selNodeCode}
               onCommitNodeCode={commitNodeCode}
+              runStep={run.steps.find((st) => st.nodeId === selResolved.rawId)}
             />
           )}
 
@@ -365,7 +427,35 @@ export function App() {
             />
           )}
 
-          <WalkthroughPanel nodes={chart.nodes} edges={chart.doc.edges} />
+          {/* Lifts clear of the run bar rather than hiding under it. */}
+          <div style={{ position: "absolute", inset: 0, bottom: runBarH, pointerEvents: "none" }}>
+            <div className="relative h-full w-full [&>*]:pointer-events-auto">
+              <WalkthroughPanel nodes={chart.nodes} edges={chart.doc.edges} />
+            </div>
+          </div>
+
+          {run.status !== "idle" && (
+            <RunBar
+              run={run}
+              open={runBarOpen}
+              onToggle={() => setRunBarOpen((o) => !o)}
+              onSelectNode={(id) => setSel({ kind: "node", id })}
+              selectedNodeId={sel?.kind === "node" ? sel.id : null}
+              onClose={run.clear}
+            />
+          )}
+
+          {askingInputs && (
+            <RunInputs
+              names={askingInputs}
+              onCancel={() => setAskingInputs(null)}
+              onRun={(values) => {
+                setAskingInputs(null);
+                setRunBarOpen(true);
+                run.start(chart.doc, values);
+              }}
+            />
+          )}
         </div>
       </div>
     </ReactFlowProvider>

@@ -84,9 +84,52 @@ export function FlowEdge({
     offset,
   });
 
+  // Run state, set by App while a flow is executing.
+  const runActive = data?.runActive === true;
+  const runTaken = data?.runTaken === true;
+
   return (
     <>
       <BaseEdge id={id} path={path} markerEnd={markerEnd} style={style} interactionWidth={24} />
+
+      {/* The request travelling. A real call returns far too fast to perceive,
+          so the run is paced (see useFlowRun) and this dot rides the actual
+          edge path — `mpath` follows the same geometry BaseEdge just drew, so
+          it tracks every corner of the orthogonal route for free. */}
+      {runActive && (
+        <>
+          <path
+            d={path}
+            fill="none"
+            stroke="var(--color-accent)"
+            strokeWidth={2.5}
+            strokeLinecap="round"
+            opacity={0.85}
+            style={{ pointerEvents: "none" }}
+          />
+          <circle r={4} fill="var(--color-accent)" style={{ pointerEvents: "none" }}>
+            <animate
+              attributeName="opacity"
+              values="0;1;1;0"
+              dur="0.9s"
+              repeatCount="indefinite"
+            />
+            <animateMotion dur="0.9s" repeatCount="indefinite" path={path} />
+          </circle>
+        </>
+      )}
+
+      {/* The route the run actually took, left lit behind it. */}
+      {runTaken && !runActive && (
+        <path
+          d={path}
+          fill="none"
+          stroke="var(--color-api)"
+          strokeWidth={1.75}
+          opacity={0.45}
+          style={{ pointerEvents: "none" }}
+        />
+      )}
       {label ? (
         <EdgeLabelRenderer>
           <div

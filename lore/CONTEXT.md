@@ -2,12 +2,58 @@
 
 **Focus:** FML — `.fml` Flowchart Markup Language: parser (`src/fml/`) + web viewer (React Flow + dagre)
 **Phase:** R&D → the north star is real. **Flows execute**: `src/fml/run.ts` sends `api` nodes, threads `capture`d values between calls, asserts `expect`, routes on status — runnable today via `node scripts/run.ts <file.fml>`. Portal bubbles shipped. Live at https://protoarch.web.app / https://fml.arque.app
-**Open:** **no in-app run UI yet** — the engine and the dev proxy are done, nothing on the canvas drives them; api-node *authoring* UI (first-class fields for method/path/header/capture instead of generic kv rows) not started; cross-doc variable scope still undecided as a *routing* question — does a run step into a `flow` portal's doc? (the variable half dissolved: one run has one flat store); deployed site can only reach CORS-permissive APIs by design (dev proxy is dev-only); bubble contents are read/edit-only, not draggable; node rename + add/delete node/edge (structural — needs an FmlDoc→text serializer); breadcrumb for portal drill-down (the jump itself works); "Open folder" (File System Access API); sidebar resize; label crowding on primary+reciprocal at one node; `#` in a value is still eaten by the comment lexer (JB's call); `public/index.html` is dead Firebase boilerplate; a handful of `lore/` reference docs (`GUARDRAILS.md`, `INDEX.md`, `architecture/*.md`, `ideas/*.md`, `testing/registry.md`) still say "protoArch" here and there — not yet swept, low-stakes
-**Next:** the run UI — a Run button, per-node pass/fail on the canvas, a variables/inputs panel, response inspection; then first-class `api` authoring fields in the property panel
+**Open:** run UI built but **not reviewed by JB** (`feature/run-ui`); api-node *authoring* UI (first-class fields for method/path/header/capture instead of generic kv rows) not started; run targets the active doc only — a bubble's contents aren't runnable, and a `flow` portal isn't stepped into (the routing half of the cross-doc question); cross-doc variable scope still undecided as a *routing* question — does a run step into a `flow` portal's doc? (the variable half dissolved: one run has one flat store); deployed site can only reach CORS-permissive APIs by design (dev proxy is dev-only); bubble contents are read/edit-only, not draggable; node rename + add/delete node/edge (structural — needs an FmlDoc→text serializer); breadcrumb for portal drill-down (the jump itself works); "Open folder" (File System Access API); sidebar resize; label crowding on primary+reciprocal at one node; `#` in a value is still eaten by the comment lexer (JB's call); `public/index.html` is dead Firebase boilerplate; a handful of `lore/` reference docs (`GUARDRAILS.md`, `INDEX.md`, `architecture/*.md`, `ideas/*.md`, `testing/registry.md`) still say "protoArch" here and there — not yet swept, low-stakes
+**Next:** JB to review the run UI; then first-class `api` authoring fields in the property panel
 
 ---
 
 ## Log
+
+### 2026-09-05 — JB / Claude (cont.) — The run UI
+JB: *"run the ui… plan the ui properly with the ux in mind… is there a way to
+make it look like the req flow is going through the nodes and edges."*
+
+Design principle everything hangs off: **the canvas is the test report.** Postman
+gives you a list; F*ML already has the map, so results belong *on* the map. Put
+the run output in a log pane and we'd have built a worse Postman.
+
+- **Run/Stop** in the toolbar, first and visually weighted — it's what the tool
+  is for.
+- **The step badge becomes the status.** A node's position in the flow and its
+  result are the same fact, so it stays one control rather than crowding an
+  already-busy card: pulse in flight, green ✓, red ✕. Card gets a matching ring;
+  a node the run never reached dims out.
+- **Run bar** (JB picked full-width bottom over reusing the Walkthrough panel):
+  verdict, every step in order with status/timing, and the **live variable
+  store** so captures visibly fill in as they land.
+- **Run tab in the property panel** — exact request sent, response
+  pretty-printed, what was captured. The API-client inspector, reached by
+  clicking the box on the map.
+- **Pre-flight inputs** for `{name}`s the file can't supply. React state only:
+  never the .fml, never localStorage. A tool that quietly persists your
+  credentials would undo the entire reason secrets stay out of the file.
+
+**The animation.** Requests return far too fast to perceive, so the run is
+paced — but *not* by putting `setTimeout` in the engine. `runFlow`'s callbacks
+became awaitable (`onStepStart` / `onStep` / `onEdge`), so the caller holds the
+walk open as long as it likes. The engine stays pure and full-speed; the UI is
+what decides a beat is 220/260/380ms. `fast` turns the floors off. Nothing here
+touches a reported duration — those come from the transport. The pulse itself is
+an SVG `animateMotion` riding the edge's own path via `mpath`, so it follows
+every corner of the orthogonal route for free.
+
+**Bug caught while verifying:** feeding run state through `chartNodes`/
+`chartEdges` gave them a new identity every tick, which re-triggered `fitView` —
+the viewport would have yanked around on every single beat of a run. Split the
+effects: a cheap mirror on every change, and reset+refit on a new `fitKey` that
+only moves when the graph actually changes. Found by instrumenting the DOM, not
+by looking at it.
+
+Verified in-browser end to end: happy path (PASS, 2 requests, captures threading
+into request 2), failure path (red ✕, walks the modelled `-404>` edge to
+NotFound, unreached nodes dim, exit-equivalent FAIL), the inputs prompt, the Run
+tab, and the travelling pulse (confirmed via MutationObserver: circle +
+animateMotion + lit path all rendered). 242 tests green, build clean.
 
 ### 2026-09-05 — JB / Claude (cont.) — The flows execute
 JB: *"work on the api logic… calling the api and storing that into a variable

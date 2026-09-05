@@ -25,7 +25,7 @@ const RENDERABLE_IMAGE = /^(https?:|data:image\/)/i;
  * border so an undeclared reference is visible at a glance.
  */
 export function FmlNode({ id, data, selected }: NodeProps<FmlFlowNode>) {
-  const { label, kind, meta, dir, order, traceRole, onBadge, expanded, onExpand } = data;
+  const { label, kind, meta, dir, order, traceRole, onBadge, expanded, onExpand, runState } = data;
   const lr = dir === "LR";
   const primaryTarget = lr ? "left" : "top";
   const primarySource = lr ? "right" : "bottom";
@@ -38,6 +38,17 @@ export function FmlNode({ id, data, selected }: NodeProps<FmlFlowNode>) {
   const rows = Object.entries(meta).filter(([k]) => !(image && k === "image"));
   const shown = rows.slice(0, META_LIMIT);
   const hidden = rows.length - shown.length;
+
+  // How the badge reads during a run. `skipped` deliberately has no badge of
+  // its own — a node the run never reached should recede, not shout.
+  const runBadge =
+    runState === "running"
+      ? { glyph: "•", color: "var(--color-ink-dim)", title: "request in flight" }
+      : runState === "passed"
+        ? { glyph: "✓", color: "var(--color-api)", title: "passed" }
+        : runState === "failed"
+          ? { glyph: "✕", color: "var(--color-danger)", title: "failed" }
+          : undefined;
 
   const handleClass = (visible: boolean) =>
     visible ? "!h-1.5 !w-1.5 !bg-[#3d3d3d]" : "!h-1 !w-1 !bg-transparent !opacity-0";
@@ -99,28 +110,35 @@ export function FmlNode({ id, data, selected }: NodeProps<FmlFlowNode>) {
         </button>
       )}
 
-      {/* step number — its place in the flow. Click it to trace what connects here. */}
+      {/* Step number — its place in the flow. Click it to trace what connects
+          here. During a run the badge *is* the status: a step's position in the
+          flow and its result are the same fact, so this stays one control
+          instead of crowding the card with a second indicator. */}
       {typeof order === "number" && (
         <button
           type="button"
-          title="Show what connects to this node"
+          title={runBadge ? runBadge.title : "Show what connects to this node"}
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
             onBadge?.(id);
           }}
-          className="nodrag absolute -right-2.5 -top-2.5 z-20 flex h-[20px] min-w-[20px] cursor-pointer items-center justify-center rounded-full border px-1 font-mono text-[10px] font-semibold tabular-nums transition-transform hover:scale-110"
+          className={`nodrag absolute -right-2.5 -top-2.5 z-20 flex h-[20px] min-w-[20px] cursor-pointer items-center justify-center rounded-full border px-1 font-mono text-[10px] font-semibold tabular-nums transition-transform hover:scale-110 ${
+            runState === "running" ? "animate-pulse" : ""
+          }`}
           style={
-            traceRole === "self"
-              ? { borderColor: accent, background: accent, color: "var(--color-bg)" }
-              : {
-                  borderColor: `color-mix(in srgb, ${accent} 45%, transparent)`,
-                  background: "var(--color-elevated)",
-                  color: `color-mix(in srgb, ${accent} 75%, var(--color-ink))`,
-                }
+            runBadge
+              ? { borderColor: runBadge.color, background: runBadge.color, color: "var(--color-bg)" }
+              : traceRole === "self"
+                ? { borderColor: accent, background: accent, color: "var(--color-bg)" }
+                : {
+                    borderColor: `color-mix(in srgb, ${accent} 45%, transparent)`,
+                    background: "var(--color-elevated)",
+                    color: `color-mix(in srgb, ${accent} 75%, var(--color-ink))`,
+                  }
           }
         >
-          {order}
+          {runBadge ? runBadge.glyph : order}
         </button>
       )}
 
@@ -130,7 +148,19 @@ export function FmlNode({ id, data, selected }: NodeProps<FmlFlowNode>) {
           untyped ? "border border-dashed border-line-strong" : "border border-line"
         }`}
         style={
-          selected
+          runState === "running"
+            ? {
+                borderColor: "color-mix(in srgb, var(--color-ink-dim) 60%, transparent)",
+                boxShadow: "0 0 0 3px color-mix(in srgb, var(--color-ink-dim) 22%, transparent), 0 6px 22px -6px rgba(0,0,0,0.65)",
+              }
+            : runState === "passed" || runState === "failed"
+              ? {
+                  borderColor: `color-mix(in srgb, ${runState === "passed" ? "var(--color-api)" : "var(--color-danger)"} 55%, transparent)`,
+                  boxShadow: `0 0 0 1px color-mix(in srgb, ${runState === "passed" ? "var(--color-api)" : "var(--color-danger)"} 30%, transparent), 0 6px 22px -6px rgba(0,0,0,0.65)`,
+                }
+              : runState === "skipped"
+                ? { boxShadow: "0 2px 14px -3px rgba(0,0,0,0.55)", opacity: 0.3 }
+                : selected
             ? {
                 borderColor: `color-mix(in srgb, ${accent} 55%, transparent)`,
                 boxShadow: `0 0 0 1px color-mix(in srgb, ${accent} 35%, transparent), 0 6px 22px -6px rgba(0,0,0,0.65)`,
