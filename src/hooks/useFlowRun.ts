@@ -18,6 +18,16 @@ const BEAT = { start: 220, settle: 260, edge: 380 };
 
 export type RunSpeed = "watch" | "fast";
 
+/**
+ * Where the camera should be looking. `ids` empty means "the whole graph".
+ * `nonce` makes each request distinct so focusing the same node twice in a row
+ * still moves the camera.
+ */
+export interface FocusRequest {
+  ids: string[];
+  nonce: number;
+}
+
 export interface FlowRun {
   status: "idle" | "running" | "done";
   /** null until a run finishes. */
@@ -34,6 +44,12 @@ export interface FlowRun {
    * different facts — a page node is visited but never passes anything.
    */
   visited: Set<string>;
+  /**
+   * What the canvas should frame right now — the node being called, or both
+   * ends of the edge a request is travelling. Only set in `watch`: at full
+   * speed the camera would just thrash.
+   */
+  focus: FocusRequest | null;
   /** The live variable store, so captures can be watched filling in. */
   vars: Record<string, string>;
   result: RunResult | null;
@@ -64,6 +80,8 @@ export function useFlowRun(): FlowRun {
   const [activeEdge, setActiveEdge] = useState<string | null>(null);
   const [takenEdges, setTakenEdges] = useState<Set<string>>(new Set());
   const [visited, setVisited] = useState<Set<string>>(new Set());
+  const [focus, setFocus] = useState<FocusRequest | null>(null);
+  const focusNonce = useRef(0);
   const [vars, setVars] = useState<Record<string, string>>({});
   const [result, setResult] = useState<RunResult | null>(null);
   const [speed, setSpeed] = useState<RunSpeed>("watch");
@@ -74,6 +92,12 @@ export function useFlowRun(): FlowRun {
   const speedRef = useRef<RunSpeed>(speed);
   speedRef.current = speed;
   const beat = (ms: number) => wait(speedRef.current === "watch" ? ms : 0);
+  /** Aim the camera, but only when there's a person watching it move. */
+  const look = (ids: string[]) => {
+    if (speedRef.current !== "watch") return;
+    focusNonce.current += 1;
+    setFocus({ ids, nonce: focusNonce.current });
+  };
 
   const clear = useCallback(() => {
     setStatus("idle");
@@ -82,6 +106,7 @@ export function useFlowRun(): FlowRun {
     setActiveEdge(null);
     setTakenEdges(new Set());
     setVisited(new Set());
+    setFocus(null);
     setVars({});
     setResult(null);
   }, []);
@@ -112,7 +137,10 @@ export function useFlowRun(): FlowRun {
           signal: controller.signal,
 
           onStepStart: async (node) => {
-            if (node.type !== "api") return; // a page/decision node sends nothing
+            // Settle on the node about to act — including a page/decision the
+            // flow passes through, so the camera never skips a beat of the path.
+            look([node.id]);
+            if (node.type !== "api") return; // sends nothing, so no status
             setNodeState((prev) => new Map(prev).set(node.id, "running"));
             await beat(BEAT.start);
           },
@@ -138,6 +166,9 @@ export function useFlowRun(): FlowRun {
           onEdge: async (edge) => {
             setTakenEdges((prev) => new Set(prev).add(edge.id));
             setActiveEdge(edge.id);
+            // Frame both ends while the pulse crosses — you want to see where
+            // it left and where it's going, not one node in isolation.
+            look([edge.source, edge.target]);
             await beat(BEAT.edge);
             setActiveEdge(null);
           },
@@ -146,6 +177,8 @@ export function useFlowRun(): FlowRun {
         setResult(run);
         setVars(run.vars);
         setStatus("done");
+        // Pull back to the whole flow so the finished run reads as a picture.
+        look([]);
       } catch {
         // runFlow itself doesn't throw for a failed request — that's a step
         // result. Reaching here means the run was aborted.
@@ -164,6 +197,7 @@ export function useFlowRun(): FlowRun {
     activeEdge,
     takenEdges,
     visited,
+    focus,
     vars,
     result,
     speed,

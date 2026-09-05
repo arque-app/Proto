@@ -385,6 +385,7 @@ export function App() {
             onTrace={setTrace}
             posDocKey={chart.posDocKey}
             fitKey={fitKey}
+            focus={run.focus}
             padding={padding}
           />
           <Toolbar

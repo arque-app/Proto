@@ -21,6 +21,9 @@ import type { FmlFlowNode, FmlNodeData } from "../types/chart.ts";
 import type { Selection } from "./PropertyPanel.tsx";
 
 const nodeTypes = { fml: FmlNode, bubble: BubbleNode };
+
+/** Ceiling on how close the run camera gets — comfortable reading distance. */
+const FOLLOW_ZOOM = 1.15;
 const edgeTypes = { flow: FlowEdge };
 
 /**
@@ -63,6 +66,12 @@ interface Props {
    * those would yank the canvas around while you're trying to watch the run.
    */
   fitKey: string;
+  /**
+   * Where the run wants the camera. Driving it from here rather than from the
+   * run hook because `useReactFlow` only exists inside the provider — the hook
+   * says *what* to look at, this knows *how*.
+   */
+  focus?: { ids: string[]; nonce: number } | null;
   /** Keeps `fitView` from tucking nodes under the toolbar or side panels. */
   padding: FitPadding;
 }
@@ -77,6 +86,7 @@ export function FlowCanvas({
   onTrace,
   posDocKey,
   fitKey,
+  focus,
   padding,
 }: Props) {
   const { fitView } = useReactFlow();
@@ -122,6 +132,23 @@ export function FlowCanvas({
     );
     return () => cancelAnimationFrame(id);
   }, [initialized, fitKey, fitView]);
+
+  // Follow the run: settle on the node being called, then pull out to frame
+  // both ends of the edge a request is crossing. `maxZoom` is what stops a
+  // single small card from filling the screen — fitting one node alone would
+  // otherwise zoom to 4x. A pair that sits far apart simply resolves to a
+  // lower zoom on its own, so one cap handles both cases.
+  useEffect(() => {
+    if (!focus) return;
+    void fitView({
+      ...(focus.ids.length > 0 ? { nodes: focus.ids.map((id) => ({ id })) } : {}),
+      padding: paddingRef.current,
+      maxZoom: FOLLOW_ZOOM,
+      duration: 300,
+    });
+    // Keyed on the nonce so focusing the same node twice still moves.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus?.nonce]);
 
   // Selection is owned by the app (the sidebar can drive it too), so the
   // rendered graph mirrors that rather than React Flow's internal flag.
