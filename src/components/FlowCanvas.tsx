@@ -125,11 +125,19 @@ export function FlowCanvas({
   const paddingRef = useRef(padding);
   paddingRef.current = padding;
 
+  // `useNodesInitialized()` isn't a one-time "the graph is ready" flag — it
+  // flips false→true again almost every time ANY node's data changes (a run
+  // tick touching `runState` counts), because React Flow re-measures on every
+  // node update. Depending on it directly meant this effect fired a fresh
+  // fit-ALL roughly every run tick, ~40ms after the run's own focus fitView —
+  // always winning the race and stomping the camera follow before a single
+  // frame of it could show. Only fit-all once per *real* graph change
+  // (`fitKey`), not on every remeasure of the same graph.
+  const fitDoneFor = useRef<string | null>(null);
   useEffect(() => {
-    if (!initialized) return;
-    const id = requestAnimationFrame(() =>
-      void fitView({ padding: paddingRef.current, duration: 200 }),
-    );
+    if (!initialized || fitDoneFor.current === fitKey) return;
+    fitDoneFor.current = fitKey;
+    const id = requestAnimationFrame(() => void fitView({ padding: paddingRef.current, duration: 200 }));
     return () => cancelAnimationFrame(id);
   }, [initialized, fitKey, fitView]);
 

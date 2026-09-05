@@ -1,0 +1,99 @@
+# long-chain.fml — a long straight-line flow for watching the run camera pan.
+#
+#   node scripts/run.ts examples/long-chain.fml
+#   or open it in the app and hit Run (watch mode)
+#
+# 7 api calls, each threading a captured value into the next, with a page
+# between every call so the camera has somewhere to land in between requests.
+# Hits jsonplaceholder.typicode.com — public, read-only, CORS-permissive, no
+# keys needed — so this runs for real, no proxy required, on the deployed
+# site too.
+
+@meta
+  title: Long chain — camera pan demo
+  base: https://jsonplaceholder.typicode.com
+
+@vars
+  userId: 1
+
+@nodes
+  Start           = page
+  getUser         = api
+  ProfileScreen   = page
+  getPosts        = api
+  PostScreen      = page
+  getPost         = api
+  getComments     = api
+  CommentsScreen  = page
+  getAlbum        = api
+  getPhotos       = api
+  GalleryScreen   = page
+  getTodo         = api
+  Done            = page
+
+@node getUser {
+  method: GET
+  path: /users/{userId}
+  header.Accept: application/json
+  capture.username: $.username
+  capture.city: $.address.city
+  expect: 200
+}
+
+@node getPosts {
+  method: GET
+  path: /posts
+  query.userId: {userId}
+  capture.firstPostId: $[0].id
+  capture.firstPostTitle: $[0].title
+  expect: 200
+}
+
+@node getPost {
+  method: GET
+  path: /posts/{firstPostId}
+  capture.postBody: $.body
+  expect: 200
+}
+
+@node getComments {
+  method: GET
+  path: /posts/{firstPostId}/comments
+  capture.firstCommentEmail: $[0].email
+  expect: 200
+}
+
+@node getAlbum {
+  method: GET
+  path: /albums/{userId}
+  capture.albumTitle: $.title
+  expect: 200
+}
+
+@node getPhotos {
+  method: GET
+  path: /albums/{userId}/photos
+  capture.firstPhotoUrl: $[0].url
+  expect: 200
+}
+
+@node getTodo {
+  method: GET
+  path: /todos/{userId}
+  capture.todoTitle: $.title
+  expect: 200
+}
+
+@flow
+  Start          -load>    getUser
+  getUser        -200>     ProfileScreen
+  ProfileScreen  -posts>   getPosts
+  getPosts       -200>     PostScreen
+  PostScreen     -open>    getPost
+  getPost        -200>     getComments
+  getComments    -200>     CommentsScreen
+  CommentsScreen -album>   getAlbum
+  getAlbum       -200>     getPhotos
+  getPhotos      -200>     GalleryScreen
+  GalleryScreen  -todos>   getTodo
+  getTodo        -200>     Done
