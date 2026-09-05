@@ -3,6 +3,7 @@
 
 @meta
   title: ShopApp — Browse to Checkout
+  base: https://api.example.com
   version: 0.2
 
 @nodes

@@ -1,5 +1,5 @@
 // Usage: node scripts/run.ts <file.fml> [--doc <name>] [--start <nodeId>]
-//                            [--var name=value ...] [--dry] [--json]
+//                            [--var name=value ...] [--dry] [--json] [--fail-fast]
 //
 // Executes an FML flow for real. Node has no CORS, so this runs today — the
 // browser runner is a transport swap away, not a rewrite (see src/fml/run.ts).
@@ -167,7 +167,7 @@ const run = await runFlow(flow, {
   transport: send,
   vars: supplied,
   ...(flag("start") ? { start: flag("start")! } : {}),
-  continueOnFailure: has("keep-going"),
+  stopOnFailure: has("fail-fast"),
   onStep: asJson ? undefined : line,
 });
 

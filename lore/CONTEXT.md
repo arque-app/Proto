@@ -1,13 +1,64 @@
 # Context — F*ML
 
 **Focus:** FML — `.fml` Flowchart Markup Language: parser (`src/fml/`) + web viewer (React Flow + dagre)
-**Phase:** R&D — language standardised (5 node types) and now variable-aware (`@vars` + `capture` resolution); viewer redesigned with a physics-refined layout; portal "bubble" expansion just built on `feature/portal-bubbles`, unmerged; live at https://protoarch.web.app, also reachable at https://fml.arque.app (custom domain, same Firebase project)
-**Open:** drag-repel feel confirmed by JB with a real mouse — resolved; the portal-bubble feature (below) is built and self-tested but **not reviewed by JB yet** — he's inspecting the branch himself before it merges to `main`; bubble contents are read/edit-only, not draggable (v1 scope call, see log); cross-doc variable scope is undecided — a `capture` in one `@doc` doesn't resolve a `{name}` in a doc it portals into via `flow` (now also relevant to bubble contents); node rename + add/delete node/edge (structural — needs an FmlDoc→text serializer); breadcrumb for portal drill-down (the jump itself works); "Open folder" (File System Access API); sidebar resize; label crowding on primary+reciprocal at one node; `#` in a value is still eaten by the comment lexer (JB's call); `public/index.html` is dead Firebase boilerplate; a handful of `lore/` reference docs (`GUARDRAILS.md`, `INDEX.md`, `architecture/*.md`, `ideas/*.md`, `testing/registry.md`) still say "protoArch" here and there — not yet swept, low-stakes
-**Next:** JB to review `feature/portal-bubbles` and give feedback; then the runner (execution engine, needs a CORS/backend story) — blocked on the cross-doc variable question
+**Phase:** R&D → the north star is real. **Flows execute**: `src/fml/run.ts` sends `api` nodes, threads `capture`d values between calls, asserts `expect`, routes on status — runnable today via `node scripts/run.ts <file.fml>`. Portal bubbles shipped. Live at https://protoarch.web.app / https://fml.arque.app
+**Open:** **no in-app run UI yet** — the engine and the dev proxy are done, nothing on the canvas drives them; api-node *authoring* UI (first-class fields for method/path/header/capture instead of generic kv rows) not started; cross-doc variable scope still undecided as a *routing* question — does a run step into a `flow` portal's doc? (the variable half dissolved: one run has one flat store); deployed site can only reach CORS-permissive APIs by design (dev proxy is dev-only); bubble contents are read/edit-only, not draggable; node rename + add/delete node/edge (structural — needs an FmlDoc→text serializer); breadcrumb for portal drill-down (the jump itself works); "Open folder" (File System Access API); sidebar resize; label crowding on primary+reciprocal at one node; `#` in a value is still eaten by the comment lexer (JB's call); `public/index.html` is dead Firebase boilerplate; a handful of `lore/` reference docs (`GUARDRAILS.md`, `INDEX.md`, `architecture/*.md`, `ideas/*.md`, `testing/registry.md`) still say "protoArch" here and there — not yet swept, low-stakes
+**Next:** the run UI — a Run button, per-node pass/fail on the canvas, a variables/inputs panel, response inspection; then first-class `api` authoring fields in the property panel
 
 ---
 
 ## Log
+
+### 2026-09-05 — JB / Claude (cont.) — The flows execute
+JB: *"work on the api logic… calling the api and storing that into a variable
+and using that variable inside another api's request."* That's the north star
+from `ideas/flow-execution.md`, and the spec for it was already written there —
+so this was implementation, not design.
+
+**`src/fml/run.ts`** — walks a doc, sends each `api` node, folds every
+`capture.<name>` into one run-wide store so the next request spends it, asserts
+`expect`, routes on the response status. Zero deps, per the `src/fml/` rule.
+
+The decision that made it finishable: **the engine takes its transport as an
+argument and never calls the network itself.** Tests drive it with a fake,
+`scripts/run.ts` drives it with Node's `fetch`. That's why it was completed and
+tested *before* the CORS question was answered — and why flows run from the
+terminal today with no backend at all. Verified live against a public sandbox
+API: captured a value from request 1, spent it in request 2, routed on 404,
+exit 1 on failure.
+
+Strictness calls, all in the same direction (a test harness that lies is worse
+than none): a `capture` that finds nothing **fails the step**; a request with an
+unresolved `{name}` is **never sent**; an unevaluable branch **stops and says
+where** instead of guessing a path and reporting green.
+
+**`src/fml/lint.ts`** — the "api node standardisation" half. Semantic checks
+keyed by node id (not line, so the canvas can point at them): keys outside the
+type's standard (the `heder.Accept` typo catcher), `path` with no `@meta base`,
+bad method, malformed `expect`, empty capture path, run-time inputs as info.
+Surfaced in `scripts/demo.ts` under **checks**.
+
+It immediately earned itself twice. It found five api nodes across
+`shop.fml` / `multi.fml` / `fof/*` with relative paths and **no base** —
+genuinely unrunnable; fixed by adding `@meta base`. And it caught *itself*: a
+rule flagging `expect: 200` alongside a drawn `-404>` fired on three of five
+shipped examples, including canonical `auth.fml`. That pairing is the idiom, not
+a contradiction — so the rule was deleted **and the engine's default changed** to
+follow the drawn edge on a failed assertion (still red, `--fail-fast` for the
+old behaviour). Lesson worth keeping: when a check fires on your own canonical
+examples, the check is what's wrong.
+
+**CORS** — JB asked for the permanent answer, got the first-principles one: the
+permission belongs to the target server, so nothing client-side can grant it.
+He chose dev-proxy-only. `vite/devProxy.ts` (`apply: "serve"`, never ships) +
+`src/lib/httpTransport.ts` (proxy in dev, direct `fetch` built, with a real
+error message instead of the browser's opaque "Failed to fetch"). Proxy verified
+by hand. Deployed site therefore reaches CORS-permissive APIs only — by design,
+guardrail intact.
+
+77 new tests (242 total), typecheck + build clean, every example parses strict
+*and* lints clean. On `feature/flow-runner`, unmerged — no UI yet, which is the
+next piece.
 
 ### 2026-09-05 — JB / Claude (cont.) — Portal bubble expansion (feature/portal-bubbles)
 JB confirmed the drag-repel feel ("perfect") then asked for the fof/doc bubble

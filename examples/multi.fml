@@ -6,6 +6,7 @@
 
 @meta
   title: App — top level
+  base: https://api.example.com
 
 @nodes
   Splash   = page
@@ -33,6 +34,7 @@
 
 @meta
   title: Checkout sub-flow
+  base: https://api.example.com
 
 @nodes
   CartReview = page
@@ -60,6 +62,7 @@
 
 @meta
   title: Account sub-flow
+  base: https://api.example.com
 
 @nodes
   Overview   = page

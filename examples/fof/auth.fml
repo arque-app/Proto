@@ -1,5 +1,6 @@
 @meta
   title: Auth
+  base: https://api.example.com
 
 @nodes
   SignIn    = page

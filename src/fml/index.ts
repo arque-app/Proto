@@ -22,6 +22,8 @@ export type {
   ParseOptions,
   ParseResult,
 } from "./types.ts";
+export { lintDoc, lintErrors } from "./lint.ts";
+export type { LintIssue, LintSeverity } from "./lint.ts";
 export { nodeVarUsage, resolveVariables, varsInNode, varsInValue } from "./variables.ts";
 export type { NodeVarUsage, ResolvedVar, VarSource } from "./variables.ts";
 export {

@@ -364,8 +364,16 @@ export interface RunOptions {
   start?: string;
   /** Cycle guard — these graphs loop back on purpose. */
   maxSteps?: number;
-  /** Keep going after a failed step instead of stopping there. */
-  continueOnFailure?: boolean;
+  /**
+   * Stop at the first failed step. Off by default: a status that has a drawn
+   * edge is a *modelled* outcome — `-404>` exists to be walked — so the run
+   * follows it and you see the whole sad path, while the step (and the run)
+   * still scores red. Turn this on for fail-fast.
+   *
+   * A step with no response at all still stops the walk regardless: a request
+   * that never went out leaves no status to route on.
+   */
+  stopOnFailure?: boolean;
   signal?: AbortSignal;
   /** Called as each step finishes — for live per-node status on the canvas. */
   onStep?: (step: StepResult) => void;
@@ -447,7 +455,9 @@ export async function runFlow(doc: FmlDoc, opts: RunOptions): Promise<RunResult>
     steps.push(step);
     opts.onStep?.(step);
 
-    if (!step.ok && !opts.continueOnFailure) {
+    // No response means nothing to route on — an unbuildable request, a
+    // missing variable, a dead host. That always ends the walk.
+    if (!step.ok && (opts.stopOnFailure || (!step.passthrough && !step.response))) {
       stoppedBecause = "failed";
       break;
     }
@@ -464,6 +474,7 @@ export async function runFlow(doc: FmlDoc, opts: RunOptions): Promise<RunResult>
   }
 
   return {
+    // Red if any step failed, or if the walk couldn't finish honestly.
     ok: steps.every((s) => s.ok) && stoppedBecause !== "ambiguous" && stoppedBecause !== "maxSteps",
     steps,
     vars,

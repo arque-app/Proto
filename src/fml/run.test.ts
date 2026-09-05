@@ -248,15 +248,23 @@ function fakeTransport(
   eq("SECOND REQUEST CARRIES THE CAPTURED TOKEN", sent[1]?.headers.Authorization, "Bearer t0k");
   eq("second capture too", run.vars.userId, "u_1");
 
-  // The 401 branch routes to Denied instead, and nothing captures.
+  // A 401 is a *modelled* outcome — the file draws `-401> Denied`. By default
+  // the walk follows it, so you see where the sad path goes, and the run is
+  // still red because `expect: 200` failed.
   const failing = fakeTransport([{ status: 401, body: "{}" }]);
-  const denied = await runFlow(doc, {
-    transport: failing.transport,
+  const denied = await runFlow(doc, { transport: failing.transport, vars: { password: "wrong" } });
+  eq("401 walks its drawn edge by default", denied.steps.map((s) => s.nodeId), ["Start", "login", "Denied"]);
+  ok("and the run is still red", !denied.ok);
+  eq("reached the end of the sad path", denied.stoppedBecause, "end");
+
+  const fast = fakeTransport([{ status: 401, body: "{}" }]);
+  const bail = await runFlow(doc, {
+    transport: fast.transport,
     vars: { password: "wrong" },
-    continueOnFailure: true,
+    stopOnFailure: true,
   });
-  eq("401 took the other edge", denied.steps.map((s) => s.nodeId), ["Start", "login", "Denied"]);
-  ok("run is red because the step failed its expect", !denied.ok);
+  eq("--fail-fast stops at the failure", bail.steps.map((s) => s.nodeId), ["Start", "login"]);
+  eq("and says why", bail.stoppedBecause, "failed");
 }
 
 // 8. guards ----------------------------------------------------------------

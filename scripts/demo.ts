@@ -1,11 +1,13 @@
-// Usage: node scripts/demo.ts [path/to/file.fml] [--json]
+// Usage: node scripts/demo.ts [path/to/file.fml] [--json] [--all]
 import { readFileSync } from "node:fs";
 import { dirname, resolve as resolvePath } from "node:path";
-import { analyze, formatStats, parse } from "../src/fml/index.ts";
+import { analyze, formatStats, lintDoc, parse } from "../src/fml/index.ts";
 
 const args = process.argv.slice(2);
 const file = args.find((a) => !a.startsWith("--")) ?? "examples/auth.fml";
 const showJson = args.includes("--json");
+// `info` checks are statements of fact (run-time inputs), noisy by default.
+const showAll = args.includes("--all");
 
 // Resolve `@fof <path>` relative to the importing file, adding the .fml
 // extension. `from` is the path as written in the parent; we track where each
@@ -42,6 +44,15 @@ for (const doc of res.file.docs) {
   console.log();
   console.log(`── @doc ${doc.name}${doc.source ? `  (${doc.source})` : ""} ──`);
   console.log(formatStats(analyze(doc), doc.meta.title));
+
+  // Semantic checks — the mistakes that only bite once you actually run it.
+  const issues = lintDoc(doc).filter((i) => showAll || i.severity !== "info");
+  if (issues.length > 0) {
+    console.log("  checks:");
+    for (const i of issues) {
+      console.log(`    ${i.severity.padEnd(7)} ${i.nodeId}${i.key ? `.${i.key}` : ""}: ${i.message}`);
+    }
+  }
 }
 
 if (showJson) {

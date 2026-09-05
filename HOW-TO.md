@@ -269,8 +269,29 @@ The run refuses to start if any are missing, and refuses to *send* a request
 that still contains an unresolved `{name}` — a literal `{token}` in a header is
 a bug, not a request.
 
+**A failed step doesn't stop the walk.** If a status has a drawn edge, you
+modelled it deliberately — `-404>` exists to be walked — so the run follows it
+and you see where the sad path goes, while the step and the whole run still
+score red. `--fail-fast` stops at the first failure instead. A request that
+never went out (missing variable, dead host) always stops the walk: there's no
+status to route on.
+
 **Flags:** `--doc <name>` picks a doc, `--start <nodeId>` starts elsewhere,
-`--keep-going` walks past a failed step, `--json` dumps the whole run.
+`--fail-fast` stops at the first failed step, `--json` dumps the whole run.
+
+### Checking a file before you run it
+
+`node scripts/demo.ts <file.fml>` now ends with a **checks** section — the
+mistakes that only bite once you actually run something:
+
+- a key outside the type's standard (`heder.Accept` silently never sends)
+- `path` with no `@meta base` to resolve against
+- a method that isn't an HTTP verb, an `expect` that isn't a status pattern
+- `capture.x:` with no path — it would never capture anything
+- `{name}`s that are run-time inputs (shown with `--all`)
+
+Note what is deliberately *not* flagged: `expect: 200` on a node that also
+draws `-404>`. That pairing is the idiom, not a contradiction.
 
 > No browser runner yet — that needs the CORS answer (proxy vs. the backend JB
 > mentioned). The engine takes its transport as an argument precisely so that

@@ -82,14 +82,36 @@ An `event` node can seed the run's starting variables.
    backend), then per-step pass/fail on the canvas. Blocked on: the CORS
    decision, and the run-result UI.
 
-### Open question the engine surfaced
+### Resolved: `expect` vs. a drawn status edge
 
-`expect: 200` and an outgoing `-404>` edge disagree about what a 404 *is*: the
-assertion calls it a failure, the edge calls it a modelled path. Today `expect`
-decides pass/fail and the walk stops at the first failure unless
-`--keep-going`. Alternative worth considering: if a status has a matching edge,
-the author clearly modelled it — keep walking it (still red overall if `expect`
-says so), so you see the whole sad path instead of one line. Needs JB's call.
+Raised as an open question, then answered by the examples themselves. `auth.fml`
+asserts `expect: 200,202` on `login` *and* draws `-404>` and `-403>` off it;
+`app.fml` and `run.fml` do the same. That pairing isn't a contradiction, it's
+the idiom: **`expect` asserts the happy path, the edges map every outcome.**
+
+So the engine follows the drawn edge on a failed assertion and keeps walking —
+you see where the sad path goes — while the step and the run still score red.
+`stopOnFailure` / `--fail-fast` gives the old behaviour. A step with *no
+response at all* (unbuildable request, missing variable, dead host) always ends
+the walk, because there's no status to route on.
+
+A lint rule that flagged the pairing was written, fired on three of five
+shipped examples, and was deleted. Worth remembering: when a check fires on
+your own canonical examples, the check is usually what's wrong.
+
+### CORS — decided (2026-09-05)
+
+JB picked **dev-proxy-only** for now. `vite/devProxy.ts` forwards requests in
+`vite dev` (`apply: "serve"`, so it never ships); the built site calls `fetch`
+directly and therefore reaches CORS-permissive APIs only.
+
+The permanent options, for when this comes back: (1) the target API allows our
+origin — the correct fix when you own the API, which is the common case for
+this tool; (2) a hosted proxy — works with anything, but it becomes a service
+that sees every token a run sends, which is a trust obligation, not a deploy
+step; (3) leave the browser (desktop app / the CLI, which already works); (4) a
+browser extension. Nothing client-side can grant the permission — it belongs to
+the target server, by design.
 
 Related: [[fml-on-fml]] (a `flow` portal could be a reusable sub-sequence in a
 run), [[edge-notes]] (an edge could carry a `when:` guard for the runner).

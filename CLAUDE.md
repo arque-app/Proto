@@ -9,9 +9,10 @@ into the source file.
 **Repo:** github.com/joabeliot/FML
 
 > The north star is **executable flows**: run an API journey from the diagram as
-> a test — variables, captured values, status assertions. Not built yet; see
-> `lore/ideas/flow-execution.md`. Design new language features to be compatible
-> with it.
+> a test — variables, captured values, status assertions. **The engine is built**
+> (`src/fml/run.ts`); flows run from the CLI today. What's missing is the
+> in-app UI. See `lore/ideas/flow-execution.md`. Design new language features to
+> be compatible with it.
 
 ## Stack
 
@@ -32,17 +33,20 @@ into the source file.
 | `src/fml/variables.ts` | `{name}` resolution — `@vars` defaults + `capture.<name>` on an earlier node in the same doc. Per-doc scope; cross-doc (through a `flow` portal) is an open question, not decided. |
 | `src/fml/run.ts` | The execution engine — sends `api` nodes, threads `capture`d values, asserts `expect`, routes on status. **Takes its transport as an argument** — never call the network from in here, that's what keeps it testable and CORS-agnostic. |
 | `scripts/run.ts` | CLI runner (`npm run run-flow -- <file.fml>`). Node has no CORS, so flows execute today. `--dry` prints the request plan. |
+| `src/fml/lint.ts` | Semantic checks on a parsed doc — typo'd keys, unrunnable paths, malformed `expect`. Keyed by node id, not line, so the canvas can point at them. |
+| `src/lib/httpTransport.ts` | The browser's transport. Dev routes through `vite/devProxy.ts`; the built site calls `fetch` directly and therefore only reaches CORS-permissive APIs. |
+| `vite/devProxy.ts` | Dev-server request forwarder. `apply: "serve"` — it never ships, so the deployed site stays backend-free. |
 | `src/lib/fmlEdit.ts` | Write-back: targeted text surgery into one `@doc`'s span. Never re-serialises the whole file — comments and formatting must survive. |
 | `src/lib/` | layout (dagre), toReactFlow, node styling |
 | `src/hooks/useForceLayout.ts` | Repulsion physics layered on dagre's rank layout (nodes never overlap, react live while dragging). Dagre still owns structure — rank, back-edge routing, badge order; this only refines pixel position in `FlowCanvas`. |
 | `src/components/` | canvas, sidebar, toolbar, property panel, source editor |
-| `examples/` | Reference `.fml` files. **All must parse clean under strict mode.** |
+| `examples/` | Reference `.fml` files. **All must parse clean under strict mode and lint clean** (`node scripts/demo.ts <file>`). |
 
 ## Working rules
 
-- **Run `npm test` and `npm run build` before saying anything works.** Five
+- **Run `npm test` and `npm run build` before saying anything works.** Six
   suites: `src/fml/parse.test.ts`, `stats.test.ts`, `variables.test.ts`,
-  `run.test.ts`, `src/lib/fmlEdit.test.ts`.
+  `run.test.ts`, `lint.test.ts`, `src/lib/fmlEdit.test.ts`.
 - **`npm run demo -- <file>` is the structural check** when you can't see the canvas.
 - **Language changes ripple.** A new node type or key touches the parser, the
   renderer, the property panel, `HOW-TO.md` and the examples. Do all of them.
